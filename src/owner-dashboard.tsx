@@ -4,8 +4,16 @@ import { DataTable, FormField, ModalDrawer, StatusChip } from "./dashboard-ui";
 
 type Product = { id: string; name: string; deity: string; image: string; price: number; stock: number };
 type Order = { id: string; date: string; customer: string; item: string; total: number; status: string; fulfillmentStatus?: string; email?: string; phone?: string; address?: string; pincode?: string };
+type AdminMetrics = { todayRevenue: number; monthRevenue: number; totalOrders: number; paidOrders: number; averageOrderValue: number; lowStockProducts: number; outOfStockProducts: number; lowStockThreshold: number; fulfillmentNeeded: number; paymentRecovery: number };
 type Section = "Overview" | "Orders" | "Products" | "Customers" | "Coupons" | "Settings";
 const sections: Section[] = ["Overview", "Orders", "Products", "Customers", "Coupons", "Settings"];
+
+async function loadAdminMetrics() {
+  const response = await fetch("/api/admin/metrics", { cache: "no-store" });
+  const data = await response.json() as AdminMetrics & { error?: string };
+  if (!response.ok) throw new Error(data.error || "Dashboard metrics are temporarily unavailable.");
+  return data;
+}
 
 const initialProducts: Product[] = [
   { id: "ganpati", name: "Ganpati Murti", deity: "Ganpati", image: "/images/catalogue/ganpati/ganpati-01.jpeg", price: 599, stock: 8 },
@@ -28,6 +36,9 @@ export default function Dashboard() {
   const [savedProducts, setSavedProducts] = useState(initialProducts);
   const [orders, setOrders] = useState<Order[]>([]);
   const [hasLiveOrders, setHasLiveOrders] = useState(false);
+  const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
+  const [metricsError, setMetricsError] = useState("");
+  const [metricsLoading, setMetricsLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [apiError, setApiError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -69,6 +80,23 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    const refreshMetrics = async () => {
+      try {
+        const result = await loadAdminMetrics();
+        if (active) { setMetrics(result); setMetricsError(""); }
+      } catch (error) {
+        if (active) setMetricsError(error instanceof Error ? error.message : "Dashboard metrics are temporarily unavailable.");
+      } finally {
+        if (active) setMetricsLoading(false);
+      }
+    };
+    void refreshMetrics();
+    const timer = window.setInterval(refreshMetrics, 30000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault(); setCommandOpen(true); setCommandQuery("");
@@ -89,6 +117,12 @@ export default function Dashboard() {
       if (!refreshed.ok) throw new Error("Status saved, but the order list could not refresh.");
       const result = await refreshed.json() as { orders: Order[] };
       setOrders(result.orders);
+      try {
+        const refreshedMetrics = await loadAdminMetrics();
+        setMetrics(refreshedMetrics); setMetricsError("");
+      } catch (error) {
+        setMetricsError(error instanceof Error ? error.message : "Dashboard metrics are temporarily unavailable.");
+      }
       setMessage("Order progress updated for the customer account.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not update order.");
@@ -137,13 +171,13 @@ export default function Dashboard() {
     <p className="demo-note">Demo sign-in · no account or password is checked. Local development only.</p>
   </section></main>;
 
-  const totalStock = products.reduce((sum, product) => sum + product.stock, 0);
   const todayLabel = new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long" }).format(new Date()).toUpperCase();
   const visibleOrders = hasLiveOrders ? orders : demoOrders;
   const pendingCount = visibleOrders.filter(order => ["new", "pending", "pending payment"].includes(order.status.toLowerCase())).length;
   const content = section === "Products" ? <Products products={products} update={setProducts} saving={saving} onSaved={() => void saveProducts(products)} onProductCreated={refreshProducts} /> : section === "Orders" ? <Orders orders={visibleOrders} live={hasLiveOrders} savingOrder={savingOrder} onUpdate={updateOrder} /> : section === "Overview" ? <>
     <div className="welcome-row"><div><p className="overline">{todayLabel}</p><h1>Good morning</h1><p className="muted">A clear view of your little shop.</p></div><span className="preview-pill"><i /> Local preview</span></div>
-    <section className="metrics"><Metric label="New requests" value="1" detail="Needs your attention" icon="↗" /><Metric label="Products listed" value={String(products.length)} detail="Across 3 collections" icon="◇" /><Metric label="Units in stock" value={String(totalStock)} detail="Across all murtis" icon="▤" /></section>
+    <section className="metrics" aria-label="Store performance"><Metric label="Revenue today" value={metrics ? formatMoney(metrics.todayRevenue) : metricsLoading ? "Loading…" : "Unavailable"} detail={metrics ? `${formatMoney(metrics.monthRevenue)} this month` : "Monthly paid orders"} icon="₹" /><Metric label="Total orders" value={metrics ? String(metrics.totalOrders) : metricsLoading ? "Loading…" : "Unavailable"} detail={metrics ? `${metrics.paidOrders} paid orders` : "All payment states"} icon="▤" /><Metric label="Average order value" value={metrics ? formatMoney(metrics.averageOrderValue, true) : metricsLoading ? "Loading…" : "Unavailable"} detail="Based on captured payments" icon="↗" /><Metric label="Low-stock products" value={metrics ? String(metrics.lowStockProducts) : metricsLoading ? "Loading…" : "Unavailable"} detail={metrics ? `Out of stock: ${metrics.outOfStockProducts} · low at 1–${metrics.lowStockThreshold} units` : "Threshold is configurable"} icon="◇" /></section>
+    <OperationsInbox metrics={metrics} loading={metricsLoading} error={metricsError} onRetry={() => { setMetricsLoading(true); void loadAdminMetrics().then(result => { setMetrics(result); setMetricsError(""); }).catch(error => setMetricsError(error instanceof Error ? error.message : "Dashboard metrics are temporarily unavailable.")).finally(() => setMetricsLoading(false)); }} onOpen={setSection} />
     <section className="panel order-panel"><div className="panel-head"><div><p className="overline">LATEST ACTIVITY</p><h2>Order requests</h2></div><button className="text-button" onClick={() => setSection("Orders")}>View all <span>→</span></button></div><OrderTable orders={hasLiveOrders ? orders.slice(0, 2) : demoOrders.slice(0, 2)} /></section>
     <section className="panel stock-panel"><div className="panel-head"><div><p className="overline">INVENTORY</p><h2>Stock at a glance</h2></div><button className="text-button" onClick={() => setSection("Products")}>Manage stock <span>→</span></button></div><ProductRows products={products.slice(0, 3)} /></section>
   </> : <div className="page-heading"><div><p className="overline">WORKSPACE</p><h1>{section}</h1><p className="muted">This workspace is planned and will be added in a later dashboard feature.</p></div><StatusChip tone="neutral">Planned</StatusChip></div>;
@@ -155,7 +189,20 @@ export default function Dashboard() {
   </div>;
 }
 
+function formatMoney(amount: number, showPaise = false) {
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: showPaise ? 2 : 0, minimumFractionDigits: 0 }).format(amount);
+}
 function Metric({ label, value, detail, icon }: { label: string; value: string; detail: string; icon: string }) { return <article className="metric-card"><span className="metric-icon">{icon}</span><p>{label}</p><strong>{value}</strong><small>{detail}</small></article>; }
+function OperationsInbox({ metrics, loading, error, onRetry, onOpen }: { metrics: AdminMetrics | null; loading: boolean; error: string; onRetry: () => void; onOpen: (section: Section) => void }) {
+  const alerts = metrics ? [
+    { title: "Paid orders awaiting fulfillment", detail: "Prepare and update these orders for customers.", count: metrics.fulfillmentNeeded, section: "Orders" as const },
+    { title: "Inventory needs attention", detail: `${metrics.outOfStockProducts} out of stock · ${metrics.lowStockProducts} low at 1–${metrics.lowStockThreshold} units.`, count: metrics.outOfStockProducts + metrics.lowStockProducts, section: "Products" as const },
+    { title: "Payment recovery", detail: "Failed or interrupted payments may need follow-up.", count: metrics.paymentRecovery, section: "Orders" as const },
+  ].filter(alert => alert.count > 0) : [];
+  return <section className="panel operations-inbox" aria-live="polite"><div className="panel-head"><div><p className="overline">ACTION NEEDED</p><h2>Operations inbox</h2></div>{error && metrics && <span className="inbox-stale">Refresh unavailable · showing last data</span>}</div>
+    {loading && !metrics ? <p className="inbox-message">Loading current orders and inventory…</p> : error && !metrics ? <div className="inbox-error"><p>{error}</p><button className="secondary" onClick={onRetry}>Try again</button></div> : alerts.length ? <div className="inbox-alerts">{alerts.map(alert => <article className="inbox-alert" key={alert.title}><span className="inbox-alert-mark" aria-hidden="true">!</span><div className="inbox-alert-copy"><b>{alert.title}</b><small>{alert.detail}</small></div><StatusChip tone="warning">{alert.count}</StatusChip><button className="text-button" onClick={() => onOpen(alert.section)}>{alert.section === "Orders" ? "Review orders" : "Manage stock"} <span>→</span></button></article>)}</div> : <p className="inbox-message inbox-clear"><span aria-hidden="true">✓</span> All caught up. No order, stock, or payment recovery alerts.</p>}
+  </section>;
+}
 function Products({ products, update, onSaved, saving, onProductCreated }: { products: Product[]; update: (p: Product[]) => void; onSaved: () => void; saving: boolean; onProductCreated: () => void }) {
   const [showAdd, setShowAdd] = useState(false);
   const [creating, setCreating] = useState(false);
