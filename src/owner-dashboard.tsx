@@ -1,8 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { DataTable, FormField, ModalDrawer, StatusChip } from "./dashboard-ui";
 
-type Product = { id: string; name: string; deity: string; image: string; placement?: string; price: number; stock: number };
+type ProductAccordion = { id: string; title: string; content: string; format?: "rows" | "text"; active: boolean; defaultOpen: boolean };
+type ProductAccordionRowDraft = { id: string; label: string; value: string };
+type ProductAccordionDraft = ProductAccordion & { mode: "rows" | "text"; rows: ProductAccordionRowDraft[] };
+type ProductImageDraft = { key: string; src?: string; file?: File; preview: string };
+type Product = { id: string; name: string; deity: string; image: string; gallery?: string[]; placement?: string; accordions?: ProductAccordion[]; price: number; stock: number };
 type Order = { id: string; date: string; customer: string; item: string; total: number; status: string; fulfillmentStatus?: string; email?: string; phone?: string; address?: string; pincode?: string };
 type OrderDetail = Order & { items: { id: string; name: string; price: number; quantity: number }[] };
 type AdminMetrics = { todayRevenue: number; monthRevenue: number; totalOrders: number; paidOrders: number; averageOrderValue: number; lowStockProducts: number; outOfStockProducts: number; lowStockThreshold: number; fulfillmentNeeded: number; paymentRecovery: number; paymentMode: "test" | "live" | "unconfigured" };
@@ -16,6 +20,26 @@ const orderFilters: { key: OrderFilter; label: string }[] = [
   { key: "dispatched", label: "Dispatched" }, { key: "completed", label: "Completed" },
   { key: "cancelled", label: "Cancelled" }, { key: "refunded", label: "Refunded" },
 ];
+
+function parseAccordionRows(content: string): ProductAccordionRowDraft[] | null {
+  const lines = content.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  if (!lines.length) return null;
+  const rows: ProductAccordionRowDraft[] = [];
+  for (const line of lines) {
+    const separator = line.indexOf(": ");
+    if (separator < 1 || separator > 80) return null;
+    const label = line.slice(0, separator).trim();
+    const value = line.slice(separator + 2).trim();
+    if (!label || !value) return null;
+    rows.push({ id: crypto.randomUUID(), label, value });
+  }
+  return rows;
+}
+
+function toAccordionDraft(section: ProductAccordion): ProductAccordionDraft {
+  const rows = parseAccordionRows(section.content);
+  return { ...section, mode: section.format ?? (rows ? "rows" : "text"), rows: rows ?? [{ id: crypto.randomUUID(), label: "", value: "" }] };
+}
 
 async function loadAdminMetrics() {
   const response = await fetch("/api/admin/metrics", { cache: "no-store" });
@@ -213,47 +237,153 @@ function OperationsInbox({ metrics, loading, error, onRetry, onOpen }: { metrics
   </section>;
 }
 function Products({ products, update, onSaved, saving, onProductCreated, apiError }: { products: Product[]; update: (p: Product[]) => void; onSaved: () => void; saving: boolean; onProductCreated: () => void; apiError: string }) {
-  const [showAdd, setShowAdd] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState("");
-  const [name, setName] = useState("");
-  const [deity, setDeity] = useState("");
-  const [placement, setPlacement] = useState("");
-  const [price, setPrice] = useState("");
-  const [stock, setStock] = useState("0");
-  const [images, setImages] = useState<File[]>([]);
-
-  async function create(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setCreating(true); setCreateError("");
-    try {
-      const form = new FormData();
-      form.set("name", name); form.set("deity", deity); form.set("placement", placement); form.set("price", price); form.set("stock", stock);
-      images.forEach(file => form.append("images", file));
-      const response = await fetch("/api/admin/products", { method: "POST", body: form });
-      const result = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(result.error || "Product could not be added.");
-      await onProductCreated();
-      setName(""); setDeity(""); setPlacement(""); setPrice(""); setStock("0"); setImages([]); setShowAdd(false);
-    } catch (error) {
-      setCreateError(error instanceof Error ? error.message : "Product could not be added.");
-    } finally { setCreating(false); }
-  }
-
+  const [editorProduct, setEditorProduct] = useState<Product | null | undefined>(undefined);
+  const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
   return <>
-    <div className="page-heading"><div><p className="overline">YOUR CATALOGUE</p><h1>Products</h1><p className="muted">Manage murti prices, stock, and product photos.</p></div><div className="heading-actions"><button className="secondary" onClick={() => setShowAdd(!showAdd)}>{showAdd ? "Close" : "+ Add product"}</button><button className="primary" disabled={saving} onClick={onSaved}>{saving ? "Saving…" : "Save changes"}</button></div></div>
-    {showAdd && <form className="panel add-product-form" onSubmit={create}>
-      <div className="panel-head"><div><p className="overline">NEW CATALOGUE ITEM</p><h2>Add a product</h2></div></div>
-      <div className="form-grid"><label>Product name<input required minLength={2} maxLength={160} value={name} onChange={e => setName(e.target.value)} /></label><label>Deity<input required minLength={2} maxLength={80} value={deity} onChange={e => setDeity(e.target.value)} /></label><label>Placement (optional)<input maxLength={255} value={placement} onChange={e => setPlacement(e.target.value)} /></label><label>Price (₹)<input required type="number" min="1" max="1000000" step="1" value={price} onChange={e => setPrice(e.target.value)} /></label><label>Stock quantity<input required type="number" min="0" max="1000000" step="1" value={stock} onChange={e => setStock(e.target.value)} /></label></div>
-      <label className="upload-field">Product images <span>Choose 1–5 images, up to 5 MB each (JPG, PNG, WebP, AVIF)</span><input required type="file" accept="image/jpeg,image/png,image/webp,image/avif" multiple onChange={e => setImages(Array.from(e.target.files ?? []))} /></label>
-      {images.length > 0 && <p className="file-summary">{images.length} image{images.length === 1 ? "" : "s"} selected: {images.map(file => file.name).join(", ")}</p>}
-      {createError && <p className="form-error" role="alert">{createError}</p>}
-      <div className="form-actions"><span>Enter owner-confirmed price and stock; discounts are never added automatically.</span><button className="primary" disabled={creating}>{creating ? "Adding…" : "Add product"}</button></div>
-    </form>}
-    <section className="panel">{apiError ? <p className="empty-orders" role="alert">{apiError}</p> : products.length ? <ProductRows products={products} editable onChange={(id, key, value) => update(products.map(p => p.id === id ? { ...p, [key]: Number(value) } : p))} /> : <p className="empty-orders">No products have been added yet.</p>}</section>
+    <div className="page-heading"><div><p className="overline">YOUR CATALOGUE</p><h1>Products</h1><p className="muted">Manage product details, photos, prices, and stock.</p></div><div className="heading-actions"><button className="secondary" onClick={() => setEditorProduct(null)}>+ Add product</button><button className="primary" disabled={saving} onClick={onSaved}>{saving ? "Saving…" : "Save changes"}</button></div></div>
+    {editorProduct !== undefined && <ProductEditor key={editorProduct?.id ?? "new"} product={editorProduct} onCancel={() => setEditorProduct(undefined)} onSaved={async () => { await onProductCreated(); setEditorProduct(undefined); }} />}
+    <section className="panel">{apiError ? <p className="empty-orders" role="alert">{apiError}</p> : products.length ? <ProductRows products={products} editable onEdit={setEditorProduct} onPreview={setPreviewProduct} onChange={(id, key, value) => update(products.map(p => p.id === id ? { ...p, [key]: Number(value) } : p))} /> : <p className="empty-orders">No products have been added yet.</p>}</section>
+    <ModalDrawer open={Boolean(previewProduct)} title="Product preview" onClose={() => setPreviewProduct(null)} wide>{previewProduct && <ProductPreview key={previewProduct.id} product={previewProduct} />}</ModalDrawer>
   </>;
 }
-function ProductRows({ products, editable = false, onChange }: { products: Product[]; editable?: boolean; onChange?: (id: string, key: "price" | "stock", value: string) => void }) { return <div className="product-list">{products.map(p => <div className="product-row" key={p.id}><img src={p.image} alt="" /><div className="product-name"><b>{p.name}</b><small>{p.deity}</small></div><div className="product-field"><label>Price</label>{editable ? <span className="input-prefix">₹<input aria-label={`${p.name} price`} type="number" min="0" value={p.price} onChange={e => onChange?.(p.id, "price", e.target.value)} /></span> : <b>₹{p.price}</b>}</div><div className="product-field stock-field"><label>Available</label>{editable ? <input aria-label={`${p.name} stock`} type="number" min="0" value={p.stock} onChange={e => onChange?.(p.id, "stock", e.target.value)} /> : <span className={p.stock ? "stock-status" : "stock-status empty"}><i />{p.stock ? `${p.stock} units` : "Out of stock"}</span>}</div></div>)}</div>; }
+
+function ProductEditor({ product, onCancel, onSaved }: { product: Product | null; onCancel: () => void; onSaved: () => Promise<void> }) {
+  const [name, setName] = useState(product?.name ?? "");
+  const [deity, setDeity] = useState(product?.deity ?? "");
+  const [placement, setPlacement] = useState(product?.placement ?? "");
+  const [price, setPrice] = useState(String(product?.price ?? ""));
+  const [stock, setStock] = useState(String(product?.stock ?? 0));
+  const [images, setImages] = useState<ProductImageDraft[]>(() => (product?.gallery?.length ? product.gallery : product?.image ? [product.image] : []).map((src, index) => ({ key: `${product?.id ?? "new"}-${index}-${src}`, src, preview: src })));
+  const previewUrls = useRef(new Set<string>());
+  const [accordions, setAccordions] = useState<ProductAccordionDraft[]>(() => (product?.accordions ?? []).map(toAccordionDraft));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const existingImages = product?.gallery?.length ? product.gallery : product?.image ? [product.image] : [];
+
+  useEffect(() => () => { previewUrls.current.forEach(url => URL.revokeObjectURL(url)); }, []);
+
+  function addImages(files: FileList | null) {
+    if (!files?.length) return;
+    const selected = Array.from(files);
+    if (images.length + selected.length > 5) { setError("A product can have up to 5 images."); return; }
+    const added = selected.map(file => {
+      const preview = URL.createObjectURL(file);
+      previewUrls.current.add(preview);
+      return { key: crypto.randomUUID(), file, preview };
+    });
+    setImages(current => [...current, ...added]); setError("");
+  }
+
+  function replaceImage(key: string, file?: File) {
+    if (!file) return;
+    const preview = URL.createObjectURL(file);
+    previewUrls.current.add(preview);
+    const previous = images.find(image => image.key === key);
+    if (previous?.file && previewUrls.current.delete(previous.preview)) URL.revokeObjectURL(previous.preview);
+    setImages(current => current.map(image => image.key === key ? { ...image, src: undefined, file, preview } : image));
+    setError("");
+  }
+
+  function removeImage(key: string) {
+    const image = images.find(item => item.key === key);
+    if (image?.file && previewUrls.current.delete(image.preview)) URL.revokeObjectURL(image.preview);
+    setImages(current => current.filter(item => item.key !== key));
+  }
+
+  function addSection(title = "") {
+    setAccordions(current => [...current, { id: crypto.randomUUID(), title, content: "", mode: "rows", rows: [{ id: crypto.randomUUID(), label: "", value: "" }], active: true, defaultOpen: false }]);
+  }
+  function addCommonSections() {
+    setAccordions(current => [...current, ...["Dimensions & weight", "Material & finish", "Care instructions", "Packaging & delivery"].slice(0, 12 - current.length).map(title => ({ id: crypto.randomUUID(), title, content: "", mode: "rows" as const, rows: [{ id: crypto.randomUUID(), label: "", value: "" }], active: true, defaultOpen: false }))]);
+  }
+  function setSection(id: string, patch: Partial<ProductAccordionDraft>) {
+    setAccordions(current => current.map(section => section.id === id ? { ...section, ...patch, ...(patch.active === false ? { defaultOpen: false } : {}) } : section));
+  }
+  function setSectionMode(section: ProductAccordionDraft, mode: "rows" | "text") {
+    if (mode === "rows") {
+      const parsed = parseAccordionRows(section.content);
+      const rows = parsed ?? (section.content.trim() ? [{ id: crypto.randomUUID(), label: "Details", value: section.content.trim() }] : section.rows.length ? section.rows : [{ id: crypto.randomUUID(), label: "", value: "" }]);
+      setSection(section.id, { mode, format: mode, rows });
+    } else {
+      const content = section.rows.filter(row => row.label.trim() && row.value.trim()).map(row => `${row.label.trim()} — ${row.value.trim()}`).join("\n");
+      setSection(section.id, { mode, format: mode, content });
+    }
+  }
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setSaving(true); setError("");
+    try {
+      if (images.length < 1 || images.length > 5) throw new Error("Keep between 1 and 5 product images.");
+      const form = new FormData();
+      form.set("name", name); form.set("deity", deity); form.set("placement", placement); form.set("price", price); form.set("stock", stock);
+      const savedAccordions: ProductAccordion[] = accordions.map(({ mode, rows, ...section }) => ({ ...section, format: mode, content: mode === "rows" ? rows.filter(row => row.label.trim() && row.value.trim()).map(row => `${row.label.trim()}: ${row.value.trim()}`).join("\n") : section.content }));
+      form.set("accordions", JSON.stringify(savedAccordions));
+      if (product) {
+        let uploadIndex = 0;
+        const uploadFiles: File[] = [];
+        const manifest = images.map(image => {
+          if (image.file) { uploadFiles.push(image.file); return { kind: "upload", uploadIndex: uploadIndex++ }; }
+          return { kind: "existing", src: image.src };
+        });
+        form.set("galleryManifest", JSON.stringify(manifest));
+        uploadFiles.forEach(file => form.append("images", file));
+      } else {
+        images.forEach(image => { if (image.file) form.append("images", image.file); });
+      }
+      const url = product ? `/api/admin/products/${encodeURIComponent(product.id)}` : "/api/admin/products";
+      const response = await fetch(url, { method: product ? "PATCH" : "POST", body: form });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "Product could not be saved.");
+      await onSaved();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Product could not be saved."); }
+    finally { setSaving(false); }
+  }
+
+  return <form className="panel add-product-form" onSubmit={submit}>
+    <div className="panel-head"><div><p className="overline">{product ? "EDIT CATALOGUE ITEM" : "NEW CATALOGUE ITEM"}</p><h2>{product ? `Edit ${product.name}` : "Add a product"}</h2></div><button className="secondary" type="button" onClick={onCancel}>Close</button></div>
+    <div className="form-grid"><label>Product name<input required minLength={2} maxLength={160} value={name} onChange={e => setName(e.target.value)} /></label><label>Deity<input required minLength={2} maxLength={80} value={deity} onChange={e => setDeity(e.target.value)} /></label><label>Short description / placement (optional)<textarea maxLength={255} value={placement} onChange={e => setPlacement(e.target.value)} /></label><label>Price (₹)<input required type="number" min="1" max="1000000" step="1" value={price} onChange={e => setPrice(e.target.value)} /></label><label>Stock quantity<input required type="number" min="0" max="1000000" step="1" value={stock} onChange={e => setStock(e.target.value)} /></label></div>
+    {existingImages.length > 0 && <p className="file-summary">Replace an individual image, remove it, or use the arrows to change gallery order. The first image is the main product image.</p>}
+    <div className="product-image-editor" aria-label="Product image gallery">
+      {images.map((image, index) => <div className="product-image-editor-item" key={image.key}><img src={image.preview} alt={`Product image ${index + 1}`} /><div className="product-image-editor-actions"><strong>{index === 0 ? "Main image" : `Image ${index + 1}`}</strong><label className="secondary image-replace-control">Replace<input type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={e => replaceImage(image.key, e.target.files?.[0])} /></label><button className="secondary" type="button" aria-label={`Move image ${index + 1} up`} disabled={index === 0} onClick={() => setImages(current => { const next = [...current]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next; })}>↑</button><button className="secondary" type="button" aria-label={`Move image ${index + 1} down`} disabled={index === images.length - 1} onClick={() => setImages(current => { const next = [...current]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; return next; })}>↓</button><button className="secondary" type="button" aria-label={`Remove image ${index + 1}`} onClick={() => removeImage(image.key)}>Remove</button></div></div>)}
+    </div>
+    <label className="upload-field">Add images <span>Choose additional JPG, PNG, WebP, or AVIF photos, up to 5 MB each; maximum 5 images per product.</span><input disabled={images.length >= 5} type="file" accept="image/jpeg,image/png,image/webp,image/avif" multiple onChange={e => { addImages(e.target.files); e.currentTarget.value = ""; }} /></label>
+    <div className="accordion-editor"><div className="accordion-editor-heading"><div><p className="overline">PRODUCT DETAILS</p><h3>Detail accordions</h3><p>Add multiple titled sections; each can contain multiple key/value pairs. Only use facts confirmed for this product. Inactive sections stay hidden on the storefront.</p></div><button className="secondary" type="button" disabled={accordions.length > 8} onClick={addCommonSections}>Add common sections</button></div>
+      {accordions.map((section, index) => <div className="accordion-editor-row" key={section.id}><div className="accordion-editor-controls"><label>Accordion title<input required={section.active} maxLength={80} value={section.title} onChange={e => setSection(section.id, { title: e.target.value })} /></label><label>Content format<select value={section.mode} onChange={e => setSectionMode(section, e.target.value as "rows" | "text")}><option value="rows">Key/value details</option><option value="text">Paragraph text</option></select></label>{section.mode === "rows" ? <div className="accordion-content-rows"><div className="accordion-content-rows-heading"><strong>Information rows</strong><span>Shown as a two-column table</span></div>{section.rows.map((row, rowIndex) => <div className="accordion-content-row" key={row.id}><label>Label<input required={section.active} maxLength={80} placeholder="e.g. Brand name" value={row.label} onChange={e => setSection(section.id, { rows: section.rows.map(item => item.id === row.id ? { ...item, label: e.target.value } : item) })} /></label><label>Value<input required={section.active} maxLength={500} placeholder="Enter owner-confirmed value" value={row.value} onChange={e => setSection(section.id, { rows: section.rows.map(item => item.id === row.id ? { ...item, value: e.target.value } : item) })} /></label><button className="secondary" type="button" aria-label={`Remove information row ${rowIndex + 1}`} disabled={section.rows.length === 1} onClick={() => setSection(section.id, { rows: section.rows.filter(item => item.id !== row.id) })}>Remove row</button></div>)}<button className="secondary" type="button" disabled={section.rows.length >= 20} onClick={() => setSection(section.id, { rows: [...section.rows, { id: crypto.randomUUID(), label: "", value: "" }] })}>+ Add information row</button></div> : <label>Paragraph content<textarea required={section.active} maxLength={3000} value={section.content} onChange={e => setSection(section.id, { content: e.target.value })} /></label>}<label className="check-label"><input type="checkbox" checked={section.active} onChange={e => setSection(section.id, { active: e.target.checked })} /> Show on storefront</label><label className="check-label"><input type="checkbox" checked={section.defaultOpen} onChange={e => setSection(section.id, { defaultOpen: e.target.checked })} /> Open by default</label></div><div className="accordion-row-actions"><button className="secondary" type="button" aria-label="Move section up" disabled={index === 0} onClick={() => setAccordions(current => { const next = [...current]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next; })}>↑</button><button className="secondary" type="button" aria-label="Move section down" disabled={index === accordions.length - 1} onClick={() => setAccordions(current => { const next = [...current]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; return next; })}>↓</button><button className="secondary" type="button" onClick={() => setAccordions(current => current.filter(item => item.id !== section.id))}>Delete section</button></div></div>)}
+      <button className="secondary" type="button" disabled={accordions.length >= 12} onClick={() => addSection()}>+ Add detail accordion</button>
+    </div>
+    {error && <p className="form-error" role="alert">{error}</p>}
+    <div className="form-actions"><span>Use owner-confirmed details and prices. No discounts are added automatically.</span><button className="primary" disabled={saving}>{saving ? "Saving…" : product ? "Save product" : "Add product"}</button></div>
+  </form>;
+}
+
+function ProductRows({ products, editable = false, onChange, onEdit, onPreview }: { products: Product[]; editable?: boolean; onChange?: (id: string, key: "price" | "stock", value: string) => void; onEdit?: (product: Product) => void; onPreview?: (product: Product) => void }) { return <div className="product-list">{products.map(p => <div className={editable ? "product-row product-row-editable" : "product-row"} key={p.id}><img src={p.image} alt="" /><div className="product-name"><b>{p.name}</b><small>{p.deity}</small></div><div className="product-field"><label>Price</label>{editable ? <span className="input-prefix">₹<input aria-label={`${p.name} price`} type="number" min="0" value={p.price} onChange={e => onChange?.(p.id, "price", e.target.value)} /></span> : <b>₹{p.price}</b>}</div><div className="product-field stock-field"><label>Available</label>{editable ? <input aria-label={`${p.name} stock`} type="number" min="0" value={p.stock} onChange={e => onChange?.(p.id, "stock", e.target.value)} /> : <span className={p.stock ? "stock-status" : "stock-status empty"}><i />{p.stock ? `${p.stock} units` : "Out of stock"}</span>}</div>{editable && onPreview && <button className="secondary preview-product-button" type="button" onClick={() => onPreview(p)}>Preview</button>}{editable && onEdit && <button className="secondary edit-product-button" type="button" onClick={() => onEdit(p)}>Edit details</button>}</div>)}</div>; }
+
+function ProductPreview({ product }: { product: Product }) {
+  const gallery = product.gallery?.length ? product.gallery : [product.image];
+  const [activeImage, setActiveImage] = useState(gallery[0]);
+  const details = (product.accordions ?? []).filter(section => section.active && section.title.trim() && section.content.trim());
+  return <div className="product-preview">
+    <div className="product-preview-toolbar"><div><p className="overline">SAVED CATALOGUE VERSION</p><span>Read-only preview · Customer-facing product information</span></div><StatusChip tone={product.stock > 0 ? "success" : "neutral"}>{product.stock > 0 ? "In stock" : "Out of stock"}</StatusChip></div>
+    <div className="product-preview-layout">
+      <section className="product-preview-gallery" aria-label="Product image preview"><div className="product-preview-main-image"><img src={activeImage} alt={`${product.name} product view`} /></div>{gallery.length > 1 && <div className="product-preview-thumbnails" aria-label="Choose product image">{gallery.map((image, index) => <button className={activeImage === image ? "selected" : ""} type="button" key={`${image}-${index}`} aria-label={`View image ${index + 1}`} aria-pressed={activeImage === image} onClick={() => setActiveImage(image)}><img src={image} alt="" /></button>)}</div>}</section>
+      <section className="product-preview-info"><div className="product-preview-heading"><div><span className="product-preview-deity">{product.deity}</span><h3>{product.name}</h3></div><StatusChip tone="neutral">Saved</StatusChip></div>{product.placement && <p className="product-preview-description">{product.placement}</p>}<div className="product-preview-price">₹{product.price}<span>Current catalogue price</span></div><div className="product-preview-facts"><div><span>Availability</span><b>{product.stock > 0 ? `${product.stock} units` : "Out of stock"}</b></div><div><span>Gallery</span><b>{gallery.length} image{gallery.length === 1 ? "" : "s"}</b></div></div>
+        <div className="product-preview-details"><div className="product-preview-details-heading"><h4>Product details</h4><span>{details.length} active section{details.length === 1 ? "" : "s"}</span></div>{details.length ? details.map(section => <details key={section.id} open={section.defaultOpen}><summary>{section.title}<span aria-hidden="true">{section.defaultOpen ? "−" : "+"}</span></summary><ProductPreviewAccordionContent content={section.content} format={section.format} /></details>) : <p className="product-preview-empty">No additional product details have been saved.</p>}</div>
+      </section>
+    </div>
+    <p className="product-preview-footnote">This preview shows saved dashboard data. Unsaved edits are not included.</p>
+  </div>;
+}
+
+function ProductPreviewAccordionContent({ content, format }: { content: string; format?: "rows" | "text" }) {
+  const rows = content.split(/\r?\n/).map(line => line.trim()).filter(Boolean).map(line => {
+    const separator = line.indexOf(": ");
+    if (separator < 1 || separator > 80) return null;
+    const label = line.slice(0, separator).trim();
+    const value = line.slice(separator + 2).trim();
+    return label && value ? { label, value } : null;
+  });
+  const isTable = format !== "text" && rows.length > 0 && rows.every((row): row is { label: string; value: string } => row !== null);
+  return isTable ? <dl className="product-preview-specs">{rows.map((row, index) => <div key={`${row.label}-${index}`}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl> : <p>{content}</p>;
+}
 function Orders({ orders, loading, error, filter, counts, onFilter, paymentMode, savingOrder, onUpdate }: { orders: Order[]; loading: boolean; error: string; filter: OrderFilter; counts: OrderStatusCounts | null; onFilter: (filter: OrderFilter) => void; paymentMode: AdminMetrics["paymentMode"]; savingOrder: string; onUpdate: (id: string, status: string) => void }) {
   const [detailOrderId, setDetailOrderId] = useState("");
   const [detail, setDetail] = useState<OrderDetail | null>(null);

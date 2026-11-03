@@ -10,9 +10,9 @@ export function StatusChip({ tone = "neutral", children }: { tone?: "neutral" | 
   return <span className={`status-chip status-chip-${tone}`}>{children}</span>;
 }
 
-export function ModalDrawer({ open, title, onClose, children }: { open: boolean; title: string; onClose: () => void; children: ReactNode }) {
+export function ModalDrawer({ open, title, onClose, children, wide = false }: { open: boolean; title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
   if (!open) return null;
-  return <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><section className="modal-drawer" role="dialog" aria-modal="true" aria-label={title}><header><h2>{title}</h2><button type="button" aria-label="Close" onClick={onClose}>×</button></header>{children}</section></div>;
+  return <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><section className={`modal-drawer${wide ? " modal-drawer-wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}><header><h2>{title}</h2><button type="button" aria-label="Close" onClick={onClose}>×</button></header>{children}</section></div>;
 }
 
 export function FormField({ label, children }: { label: string; children: ReactNode }) {
