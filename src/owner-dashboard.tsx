@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
 type Product = { id: string; name: string; deity: string; image: string; price: number; stock: number };
-type Order = { id: string; date: string; customer: string; item: string; total: number; status: string; email?: string; phone?: string; address?: string; pincode?: string };
+type Order = { id: string; date: string; customer: string; item: string; total: number; status: string; fulfillmentStatus?: string; email?: string; phone?: string; address?: string; pincode?: string };
 
 const initialProducts: Product[] = [
   { id: "ganpati", name: "Ganpati Murti", deity: "Ganpati", image: "/images/catalogue/ganpati/ganpati-01.jpeg", price: 599, stock: 8 },
@@ -24,6 +24,7 @@ export default function Dashboard() {
   const [message, setMessage] = useState("");
   const [apiError, setApiError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [savingOrder, setSavingOrder] = useState("");
 
   async function refreshProducts() {
     try {
@@ -59,6 +60,25 @@ export default function Dashboard() {
     const timer = window.setInterval(refreshOrders, 2500);
     return () => { active = false; window.clearInterval(timer); };
   }, []);
+
+  async function updateOrder(id: string, fulfillmentStatus: string) {
+    setSavingOrder(id); setMessage("");
+    try {
+      const response = await fetch(`/api/admin/orders/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fulfillmentStatus }) });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error || "Could not update order.");
+      const refreshed = await fetch("/api/admin/orders", { cache: "no-store" });
+      if (!refreshed.ok) throw new Error("Status saved, but the order list could not refresh.");
+      const result = await refreshed.json() as { orders: Order[] };
+      setOrders(result.orders);
+      setMessage("Order progress updated for the customer account.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update order.");
+    } finally {
+      setSavingOrder("");
+      window.setTimeout(() => setMessage(""), 4500);
+    }
+  }
 
   async function saveProducts(nextProducts: Product[]) {
     setSaving(true);
@@ -100,7 +120,7 @@ export default function Dashboard() {
   </section></main>;
 
   const totalStock = products.reduce((sum, product) => sum + product.stock, 0);
-  const content = section === "Products" ? <Products products={products} update={setProducts} saving={saving} onSaved={() => void saveProducts(products)} onProductCreated={refreshProducts} /> : section === "Orders" ? <Orders orders={hasLiveOrders ? orders : demoOrders} live={hasLiveOrders} /> : <>
+  const content = section === "Products" ? <Products products={products} update={setProducts} saving={saving} onSaved={() => void saveProducts(products)} onProductCreated={refreshProducts} /> : section === "Orders" ? <Orders orders={hasLiveOrders ? orders : demoOrders} live={hasLiveOrders} savingOrder={savingOrder} onUpdate={updateOrder} /> : <>
     <div className="welcome-row"><div><p className="overline">MONDAY, 2 NOVEMBER</p><h1>Good morning</h1><p className="muted">A clear view of your little shop.</p></div><span className="preview-pill"><i /> Local preview</span></div>
     <section className="metrics"><Metric label="New requests" value="1" detail="Needs your attention" icon="↗" /><Metric label="Products listed" value={String(products.length)} detail="Across 3 collections" icon="◇" /><Metric label="Units in stock" value={String(totalStock)} detail="Across all murtis" icon="▤" /></section>
     <section className="panel order-panel"><div className="panel-head"><div><p className="overline">LATEST ACTIVITY</p><h2>Order requests</h2></div><button className="text-button" onClick={() => setSection("Orders")}>View all <span>→</span></button></div><OrderTable orders={hasLiveOrders ? orders.slice(0, 2) : demoOrders.slice(0, 2)} /></section>
@@ -154,5 +174,5 @@ function Products({ products, update, onSaved, saving, onProductCreated }: { pro
   </>;
 }
 function ProductRows({ products, editable = false, onChange }: { products: Product[]; editable?: boolean; onChange?: (id: string, key: "price" | "stock", value: string) => void }) { return <div className="product-list">{products.map(p => <div className="product-row" key={p.id}><img src={p.image} alt="" /><div className="product-name"><b>{p.name}</b><small>{p.deity}</small></div><div className="product-field"><label>Price</label>{editable ? <span className="input-prefix">₹<input aria-label={`${p.name} price`} type="number" min="0" value={p.price} onChange={e => onChange?.(p.id, "price", e.target.value)} /></span> : <b>₹{p.price}</b>}</div><div className="product-field stock-field"><label>Available</label>{editable ? <input aria-label={`${p.name} stock`} type="number" min="0" value={p.stock} onChange={e => onChange?.(p.id, "stock", e.target.value)} /> : <span className={p.stock ? "stock-status" : "stock-status empty"}><i />{p.stock ? `${p.stock} units` : "Out of stock"}</span>}</div></div>)}</div>; }
-function Orders({ orders, live }: { orders: Order[]; live: boolean }) { return <><div className="page-heading"><div><p className="overline">CUSTOMER REQUESTS</p><h1>Orders</h1><p className="muted">Review requests, then prepare and ship each murti.</p></div><span className="preview-pill"><i /> {live ? "Live order list" : "Demo data"}</span></div><section className="panel">{orders.length ? <OrderTable orders={orders} /> : <p className="empty-orders">No customer orders yet. Test-mode checkouts will appear here.</p>}</section>{!live && <p className="demo-note page-note">Example order requests are shown until the live order table is available.</p>}</>; }
+function Orders({ orders, live, savingOrder, onUpdate }: { orders: Order[]; live: boolean; savingOrder: string; onUpdate: (id: string, status: string) => void }) { return <><div className="page-heading"><div><p className="overline">CUSTOMER REQUESTS</p><h1>Orders</h1><p className="muted">Review requests, then prepare and ship each murti.</p></div><span className="preview-pill"><i /> {live ? "Live order list" : "Demo data"}</span></div><section className="panel">{orders.length ? <div className="orders-list">{orders.map(o => { const date = String(o.date); const dateLabel = date.includes("T") ? date.replace("T", " ").slice(0, 16) : date; const fulfillment = o.fulfillmentStatus || "unfulfilled"; const next = ({ unfulfilled: ["processing", "Mark as being prepared"], processing: ["dispatched", "Mark as dispatched"], dispatched: ["completed", "Mark as delivered"] } as Record<string, [string, string]>)[fulfillment]; return <article className="order-row" key={o.id}><div className="order-symbol">⌑</div><div className="order-main"><b>{o.customer}</b><small>{o.item}</small>{o.phone && <small>{o.phone} · {o.address}, {o.pincode}</small>}</div><div className="order-meta"><small>{o.id.length > 12 ? o.id.slice(0, 8) : o.id} · {dateLabel}</small><span className={`status ${o.status.toLowerCase().replaceAll(" ", "-")}`}>{o.status}</span>{live && o.status === "Paid" && <div className="fulfillment-control"><small>Delivery: {fulfillment.replaceAll("_", " ")}</small>{next && <button className="fulfillment-button" type="button" disabled={savingOrder === o.id} onClick={() => onUpdate(o.id, next[0])}>{savingOrder === o.id ? "Saving…" : next[1]}</button>}</div>}</div><b className="order-total">₹{o.total}</b></article>; })}</div> : <p className="empty-orders">No customer orders yet. Test-mode checkouts will appear here.</p>}</section>{!live && <p className="demo-note page-note">Example order requests are shown until the live order table is available.</p>}</>; }
 function OrderTable({ orders }: { orders: Order[] }) { return <div className="orders-list">{orders.map(o => { const date = String(o.date); const dateLabel = date.includes("T") ? date.replace("T", " ").slice(0, 16) : date; return <article className="order-row" key={o.id}><div className="order-symbol">⌑</div><div className="order-main"><b>{o.customer}</b><small>{o.item}</small>{o.phone && <small>{o.phone} · {o.address}, {o.pincode}</small>}</div><div className="order-meta"><small>{o.id.length > 12 ? o.id.slice(0, 8) : o.id} · {dateLabel}</small><span className={`status ${o.status.toLowerCase().replaceAll(" ", "-")}`}>{o.status}</span></div><b className="order-total">₹{o.total}</b></article>; })}</div>; }
