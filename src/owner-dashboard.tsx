@@ -59,7 +59,6 @@ export default function Dashboard() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [bannerVisible, setBannerVisible] = useState(() => window.sessionStorage.getItem("kalacar-dashboard-banner-dismissed") !== "yes");
   const [products, setProducts] = useState<Product[]>([]);
-  const [savedProducts, setSavedProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderFilter, setOrderFilter] = useState<OrderFilter>("all");
   const [orderCounts, setOrderCounts] = useState<OrderStatusCounts | null>(null);
@@ -70,7 +69,6 @@ export default function Dashboard() {
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [apiError, setApiError] = useState("");
-  const [saving, setSaving] = useState(false);
   const [savingOrder, setSavingOrder] = useState("");
 
   async function refreshProducts() {
@@ -79,11 +77,9 @@ export default function Dashboard() {
       if (!response.ok) throw new Error("Unavailable");
       const data = await response.json() as { products: Product[] };
       setProducts(data.products);
-      setSavedProducts(data.products);
       setApiError("");
     } catch {
       setProducts([]);
-      setSavedProducts([]);
       setApiError("Shared inventory is unavailable. Product information is hidden until the connection returns.");
     }
   }
@@ -192,31 +188,19 @@ export default function Dashboard() {
     }
   }
 
-  async function saveProducts(nextProducts: Product[]) {
-    setSaving(true);
-    setMessage("");
-    try {
-      for (const product of nextProducts) {
-        const original = savedProducts.find(item => item.id === product.id);
-        if (!original || (original.price === product.price && original.stock === product.stock)) continue;
-        const update: { price?: number; stock?: number } = {};
-        if (original.price !== product.price) update.price = product.price;
-        if (original.stock !== product.stock) update.stock = product.stock;
-        const response = await fetch(`/api/admin/products/${product.id}`, {
-          method: "PATCH", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(update),
-        });
-        if (!response.ok) throw new Error("Save failed");
-      }
-      await refreshProducts();
-      setMessage("Saved to the shared Kalacar inventory.");
-    } catch {
-      setMessage("Could not save. Check the storefront server and temporary database connection.");
-    } finally {
-      setSaving(false);
-      window.setTimeout(() => setMessage(""), 4000);
-    }
+  /** Unsaved quick edits, per product. Kept apart from server data so refreshes never wipe them. */
+  const [productDrafts, setProductDrafts] = useState<ProductDrafts>({});
+  const unsavedCount = Object.keys(productDrafts).length;
+  useEffect(() => {
+    if (!unsavedCount) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [unsavedCount]);
+  function productSaved(updated: Product) {
+    setProducts(list => list.map(item => item.id === updated.id ? { ...item, ...updated } : item));
   }
+
 
   // This mock gate intentionally works only in Vite's development server.
   // Production remains locked until server-backed owner auth is implemented.
@@ -235,7 +219,7 @@ export default function Dashboard() {
 
   const todayLabel = new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long" }).format(new Date()).toUpperCase();
   const pendingCount = orderCounts?.pending_payment ?? 0;
-  const content = section === "Products" ? <Products products={products} update={setProducts} saving={saving} onSaved={() => void saveProducts(products)} onProductCreated={refreshProducts} apiError={apiError} /> : section === "Orders" ? <Orders orders={orders} loading={ordersLoading} error={ordersError} filter={orderFilter} counts={orderCounts} onFilter={setOrderFilter} paymentMode={metrics?.paymentMode ?? "unconfigured"} savingOrder={savingOrder} onUpdate={updateOrder} /> : section === "Overview" ? <>
+  const content = section === "Products" ? <Products products={products} drafts={productDrafts} setDrafts={setProductDrafts} onProductSaved={productSaved} onProductCreated={refreshProducts} apiError={apiError} /> : section === "Orders" ? <Orders orders={orders} loading={ordersLoading} error={ordersError} filter={orderFilter} counts={orderCounts} onFilter={setOrderFilter} paymentMode={metrics?.paymentMode ?? "unconfigured"} savingOrder={savingOrder} onUpdate={updateOrder} /> : section === "Overview" ? <>
     <div className="welcome-row"><div><p className="overline">{todayLabel}</p><h1>Good morning</h1><p className="muted">A clear view of your little shop.</p></div><span className="preview-pill"><i /> Local preview</span></div>
     {metrics?.paymentMode === "test" && <p className="test-mode-warning" role="note">Razorpay test mode · Orders and revenue shown here are test activity, not live sales.</p>}
     {metrics?.paymentMode === "unconfigured" && <p className="test-mode-warning" role="note">Payment mode is not configured · Do not treat these order totals as live sales.</p>}
@@ -246,8 +230,8 @@ export default function Dashboard() {
   </> : <div className="page-heading"><div><p className="overline">WORKSPACE</p><h1>{section}</h1><p className="muted">This workspace is planned and will be added in a later dashboard feature.</p></div><StatusChip tone="neutral">Planned</StatusChip></div>;
 
   const filteredSections = sections.filter(item => item.toLowerCase().includes(commandQuery.toLowerCase()));
-  return <div className="app-shell"><aside className="sidebar"><a className="brand" href="#"><span className="brand-mark">k.</span><span>kalacar<small>OWNER SPACE</small></span></a><p className="nav-label">WORKSPACE</p><nav>{sections.map((item, i) => <button key={item} className={section === item ? "nav-item selected" : "nav-item"} onClick={() => { setSection(item); setMessage(""); }}><span className="nav-icon">{["⌂", "▤", "◇", "♙", "%", "⚙"][i]}</span>{item}{item === "Orders" && pendingCount > 0 && <b className="nav-count">{pendingCount}</b>}</button>)}</nav><div className="sidebar-bottom"><div className="owner-avatar">{(owner?.name ?? "S").charAt(0).toUpperCase()}</div><div className="owner-copy"><b>{owner?.name ?? "Shop owner"}</b><small>{owner?.email ?? ""}</small></div><button className="signout" title="Sign out" aria-label="Sign out" onClick={() => void signOut()}>↪</button></div></aside>
-    <main className="main-content"><div className="mobile-brand"><span className="brand-mark">k.</span><span>kalacar <small>OWNER SPACE</small></span><button className="signout" onClick={() => void signOut()}>↪</button></div><div className="content-wrap"><header className="admin-bar"><button className="command-trigger" onClick={() => { setCommandOpen(true); setCommandQuery(""); }}><span>⌕</span> Search dashboard <kbd>⌘K</kbd></button><div className="admin-bar-actions"><span className="visibility-pill" title="A functional store visibility setting is planned for Store Settings"><i /> Visibility <strong>Planned</strong></span><button className="profile-trigger" onClick={() => setProfileOpen(!profileOpen)} aria-expanded={profileOpen}><span className="owner-avatar">{(owner?.name ?? "S").charAt(0).toUpperCase()}</span><span>{owner?.name ?? "Shop owner"}</span><b>⌄</b></button>{profileOpen && <div className="profile-menu"><strong>{owner?.name ?? "Shop owner"}</strong><small>{owner?.email}</small><button onClick={() => void signOut()}>Sign out</button></div>}</div></header><nav className="mobile-section-nav" aria-label="Dashboard sections">{sections.map((item, i) => <button key={item} className={section === item ? "selected" : ""} aria-current={section === item ? "page" : undefined} onClick={() => setSection(item)}><span>{["⌂", "▤", "◇", "♙", "%", "⚙"][i]}</span>{item}{item === "Orders" && pendingCount > 0 && <b>{pendingCount}</b>}</button>)}</nav>{bannerVisible && <aside className="announcement"><span><b>Setup in progress</b><span> Dashboard tools are being added in stages. Store visibility settings are planned.</span></span><button aria-label="Dismiss setup notice" onClick={() => { window.sessionStorage.setItem("kalacar-dashboard-banner-dismissed", "yes"); setBannerVisible(false); }}>×</button></aside>}{apiError && <div className="warning" role="status">{apiError}</div>}{content}{message && <div className="toast" role="status">{message}</div>}<footer>Kalacar owner dashboard <span>·</span> local development preview</footer></div></main>
+  return <div className="app-shell"><aside className="sidebar"><a className="brand" href="#"><span className="brand-mark">k.</span><span>kalacar<small>OWNER SPACE</small></span></a><p className="nav-label">WORKSPACE</p><nav>{sections.map((item, i) => <button key={item} className={section === item ? "nav-item selected" : "nav-item"} onClick={() => { setSection(item); setMessage(""); }}><span className="nav-icon">{["⌂", "▤", "◇", "♙", "%", "⚙"][i]}</span>{item}{item === "Orders" && pendingCount > 0 && <b className="nav-count">{pendingCount}</b>}{item === "Products" && unsavedCount > 0 && <b className="nav-count unsaved" title="Unsaved product changes">{unsavedCount}</b>}</button>)}</nav><div className="sidebar-bottom"><div className="owner-avatar">{(owner?.name ?? "S").charAt(0).toUpperCase()}</div><div className="owner-copy"><b>{owner?.name ?? "Shop owner"}</b><small>{owner?.email ?? ""}</small></div><button className="signout" title="Sign out" aria-label="Sign out" onClick={() => void signOut()}>↪</button></div></aside>
+    <main className="main-content"><div className="mobile-brand"><span className="brand-mark">k.</span><span>kalacar <small>OWNER SPACE</small></span><button className="signout" onClick={() => void signOut()}>↪</button></div><div className="content-wrap"><header className="admin-bar"><button className="command-trigger" onClick={() => { setCommandOpen(true); setCommandQuery(""); }}><span>⌕</span> Search dashboard <kbd>⌘K</kbd></button><div className="admin-bar-actions"><span className="visibility-pill" title="A functional store visibility setting is planned for Store Settings"><i /> Visibility <strong>Planned</strong></span><button className="profile-trigger" onClick={() => setProfileOpen(!profileOpen)} aria-expanded={profileOpen}><span className="owner-avatar">{(owner?.name ?? "S").charAt(0).toUpperCase()}</span><span>{owner?.name ?? "Shop owner"}</span><b>⌄</b></button>{profileOpen && <div className="profile-menu"><strong>{owner?.name ?? "Shop owner"}</strong><small>{owner?.email}</small><button onClick={() => void signOut()}>Sign out</button></div>}</div></header><nav className="mobile-section-nav" aria-label="Dashboard sections">{sections.map((item, i) => <button key={item} className={section === item ? "selected" : ""} aria-current={section === item ? "page" : undefined} onClick={() => setSection(item)}><span>{["⌂", "▤", "◇", "♙", "%", "⚙"][i]}</span>{item}{item === "Orders" && pendingCount > 0 && <b>{pendingCount}</b>}{item === "Products" && unsavedCount > 0 && <b className="unsaved" title="Unsaved product changes">{unsavedCount}</b>}</button>)}</nav>{bannerVisible && <aside className="announcement"><span><b>Setup in progress</b><span> Dashboard tools are being added in stages. Store visibility settings are planned.</span></span><button aria-label="Dismiss setup notice" onClick={() => { window.sessionStorage.setItem("kalacar-dashboard-banner-dismissed", "yes"); setBannerVisible(false); }}>×</button></aside>}{apiError && <div className="warning" role="status">{apiError}</div>}{content}{message && <div className="toast" role="status">{message}</div>}<footer>Kalacar owner dashboard <span>·</span> local development preview</footer></div></main>
     <ModalDrawer open={commandOpen} title="Go to" onClose={() => setCommandOpen(false)}><FormField label="Search sections"><input autoFocus value={commandQuery} onChange={event => setCommandQuery(event.target.value)} placeholder="Type a section name…" /></FormField><div className="command-results">{filteredSections.map(item => <button key={item} onClick={() => { setSection(item); setCommandOpen(false); }}>{item}<span>↵</span></button>)}{filteredSections.length === 0 && <p>No matching sections.</p>}</div></ModalDrawer>
   </div>;
 }
@@ -266,13 +250,102 @@ function OperationsInbox({ metrics, loading, error, onRetry, onOpen }: { metrics
     {loading && !metrics ? <p className="inbox-message">Loading current orders and inventory…</p> : error && !metrics ? <div className="inbox-error"><p>{error}</p><button className="secondary" onClick={onRetry}>Try again</button></div> : alerts.length ? <div className="inbox-alerts">{alerts.map(alert => <article className="inbox-alert" key={alert.title}><span className="inbox-alert-mark" aria-hidden="true">!</span><div className="inbox-alert-copy"><b>{alert.title}</b><small>{alert.detail}</small></div><StatusChip tone="warning">{alert.count}</StatusChip><button className="text-button" onClick={() => onOpen(alert.section)}>{alert.section === "Orders" ? "Review orders" : "Manage stock"} <span>→</span></button></article>)}</div> : <p className="inbox-message inbox-clear"><span aria-hidden="true">✓</span> All caught up. No order, stock, or payment recovery alerts.</p>}
   </section>;
 }
-function Products({ products, update, onSaved, saving, onProductCreated, apiError }: { products: Product[]; update: (p: Product[]) => void; onSaved: () => void; saving: boolean; onProductCreated: () => void; apiError: string }) {
+type ProductDraft = { price?: string; stock?: string };
+type ProductDrafts = Record<string, ProductDraft>;
+
+/** Validates a draft against the saved product; returns per-field errors and the clean changes. */
+function checkDraft(product: Product, draft: ProductDraft) {
+  const errors: { price?: string; stock?: string } = {};
+  const changes: { price?: number; stock?: number } = {};
+  if (draft.price !== undefined) {
+    const value = Number(draft.price);
+    if (draft.price.trim() === "" || !Number.isSafeInteger(value) || value < 1 || value > 1000000) errors.price = "Whole rupees, ₹1 or more";
+    else if (value !== product.price) changes.price = value;
+  }
+  if (draft.stock !== undefined) {
+    const value = Number(draft.stock);
+    if (draft.stock.trim() === "" || !Number.isSafeInteger(value) || value < 0 || value > 1000000) errors.stock = "Whole number, 0 or more";
+    else if (value !== product.stock) changes.stock = value;
+  }
+  return { errors, changes };
+}
+
+function Products({ products, drafts, setDrafts, onProductSaved, onProductCreated, apiError }: { products: Product[]; drafts: ProductDrafts; setDrafts: (update: (current: ProductDrafts) => ProductDrafts) => void; onProductSaved: (product: Product) => void; onProductCreated: () => void; apiError: string }) {
   const [editorProduct, setEditorProduct] = useState<Product | null | undefined>(undefined);
   const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
+  const [savingId, setSavingId] = useState("");
+  const [rowMessage, setRowMessage] = useState<{ id: string; text: string; error?: boolean } | null>(null);
+  // Stable alphabetical order: rows don't jump around after one is saved.
+  const sorted = [...products].sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
+  const unsaved = sorted.filter(product => drafts[product.id]);
+
+  function edit(product: Product, key: "price" | "stock", value: string) {
+    setRowMessage(null);
+    setDrafts(current => {
+      const next = { ...current, [product.id]: { ...current[product.id], [key]: value } };
+      // A field typed back to its saved value is no longer a change.
+      if (next[product.id][key] === String(product[key])) delete next[product.id][key];
+      if (!Object.keys(next[product.id]).length) delete next[product.id];
+      return next;
+    });
+  }
+  function undo(id: string) { setDrafts(current => { const next = { ...current }; delete next[id]; return next; }); setRowMessage(null); }
+  async function save(product: Product) {
+    const { errors, changes } = checkDraft(product, drafts[product.id] ?? {});
+    if (Object.keys(errors).length) return;
+    if (!Object.keys(changes).length) { undo(product.id); return; }
+    setSavingId(product.id); setRowMessage(null);
+    try {
+      const response = await fetch(`/api/admin/products/${encodeURIComponent(product.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes) });
+      const data = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(data.error || "Could not save this product.");
+      onProductSaved({ ...product, ...changes });
+      undo(product.id);
+      setRowMessage({ id: product.id, text: `Saved ${product.name}.` });
+    } catch (cause) { setRowMessage({ id: product.id, text: cause instanceof Error ? cause.message : "Could not save this product.", error: true }); }
+    finally { setSavingId(""); }
+  }
+
   return <>
-    <div className="page-heading"><div><p className="overline">YOUR CATALOGUE</p><h1>Products</h1><p className="muted">Manage product details, photos, prices, and stock.</p></div><div className="heading-actions"><button className="secondary" onClick={() => setEditorProduct(null)}>+ Add product</button><button className="primary" disabled={saving} onClick={onSaved}>{saving ? "Saving…" : "Save changes"}</button></div></div>
+    <div className="page-heading"><div><p className="overline">YOUR CATALOGUE</p><h1>Products</h1><p className="muted">Change a price or stock, then save that product on its own row.</p></div><div className="heading-actions"><button className="secondary" onClick={() => setEditorProduct(null)}>+ Add product</button></div></div>
+    {unsaved.length > 0 && <p className="unsaved-banner" role="status"><b>{unsaved.length === 1 ? "1 product has" : `${unsaved.length} products have`} unsaved changes</b> — highlighted below. Save or undo each one; nothing is saved until you do.</p>}
     {editorProduct !== undefined && <ProductEditor key={editorProduct?.id ?? "new"} product={editorProduct} onCancel={() => setEditorProduct(undefined)} onSaved={async () => { await onProductCreated(); setEditorProduct(undefined); }} />}
-    <section className="panel">{apiError ? <p className="empty-orders" role="alert">{apiError}</p> : products.length ? <ProductRows products={products} editable onEdit={setEditorProduct} onPreview={setPreviewProduct} onChange={(id, key, value) => update(products.map(p => p.id === id ? { ...p, [key]: Number(value) } : p))} /> : <p className="empty-orders">No products have been added yet.</p>}</section>
+    <section className="panel">{apiError ? <p className="empty-orders" role="alert">{apiError}</p> : products.length ? <div className="stock-list">
+      <div className="stock-list-head" aria-hidden="true"><span className="head-product">Product</span><span className="head-price">Price</span><span className="head-stock">Available</span></div>
+      {sorted.map(product => {
+        const draft = drafts[product.id];
+        const { errors, changes } = checkDraft(product, draft ?? {});
+        const dirty = Boolean(draft);
+        const message = rowMessage?.id === product.id ? rowMessage : null;
+        const field = (key: "price" | "stock", label: string) => {
+          const changed = draft?.[key] !== undefined;
+          return <label className={`stock-field-cell${changed ? " changed" : ""}${errors[key] ? " invalid" : ""}`}>
+            <span className="stock-field-label">{label}</span>
+            <span className={`stock-input${key === "stock" ? " has-stepper" : ""}`}>{key === "price" && <span aria-hidden="true">₹</span>}<input type="number" inputMode="numeric" min={key === "price" ? 1 : 0} step={1} aria-label={`${product.name} ${label.toLowerCase()}`} aria-invalid={Boolean(errors[key])} value={draft?.[key] ?? String(product[key])} onChange={event => edit(product, key, event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); void save(product); } if (event.key === "Escape") undo(product.id); }} />
+              {key === "stock" && <span className="stepper">
+                <button type="button" aria-label={`Increase ${product.name} stock`} onClick={() => { const current = Number(draft?.stock ?? product.stock); edit(product, "stock", String(Number.isFinite(current) ? Math.min(1000000, Math.max(0, Math.trunc(current)) + 1) : product.stock)); }}><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
+                <button type="button" aria-label={`Decrease ${product.name} stock`} disabled={Number(draft?.stock ?? product.stock) <= 0} onClick={() => { const current = Number(draft?.stock ?? product.stock); edit(product, "stock", String(Number.isFinite(current) ? Math.max(0, Math.trunc(current) - 1) : product.stock)); }}><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
+              </span>}</span>
+            {errors[key] ? <small className="stock-error">{errors[key]}</small> : changed ? <small className="stock-was">was {key === "price" ? "₹" : ""}{product[key]}</small> : null}
+          </label>;
+        };
+        return <article key={product.id} className={`stock-row${dirty ? " dirty" : ""}`} aria-label={`${product.name}${dirty ? ", unsaved changes" : ""}`}>
+          <img src={product.image} alt="" />
+          <div className="stock-name"><b>{product.name}</b><small>{product.deity}</small></div>
+          {field("price", "Price")}
+          {field("stock", "Available")}
+          <div className="stock-row-buttons">
+            <button className="secondary" type="button" onClick={() => setPreviewProduct(product)}>Preview</button>
+            <button className="secondary" type="button" disabled={dirty} title={dirty ? "Save or undo the price/stock change first" : undefined} onClick={() => setEditorProduct(product)}>Edit details</button>
+          </div>
+          {dirty && <div className="stock-row-save">
+            <span className="stock-change-summary">Unsaved: {[changes.price !== undefined && `price ₹${product.price} → ₹${changes.price}`, changes.stock !== undefined && `stock ${product.stock} → ${changes.stock}`].filter(Boolean).join(", ") || "check the highlighted field"}</span>
+            <div><button className="text-button" type="button" disabled={savingId === product.id} onClick={() => undo(product.id)}>Undo</button><button className="primary" type="button" disabled={savingId === product.id || Object.keys(errors).length > 0} onClick={() => void save(product)}>{savingId === product.id ? "Saving…" : "Save product"}</button></div>
+          </div>}
+          {message && <p className={`stock-row-message${message.error ? " error" : ""}`} role={message.error ? "alert" : "status"}>{message.text}</p>}
+        </article>;
+      })}
+    </div> : <p className="empty-orders">No products have been added yet.</p>}</section>
     <ModalDrawer open={Boolean(previewProduct)} title="Product preview" onClose={() => setPreviewProduct(null)} wide>{previewProduct && <ProductPreview key={previewProduct.id} product={previewProduct} />}</ModalDrawer>
   </>;
 }
