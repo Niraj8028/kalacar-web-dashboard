@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useLiveRefresh } from "./live";
 import { DataTable, ModalDrawer, StatusChip } from "./dashboard-ui";
 import { ChatIcon, CustomersIcon, MailIcon, PhoneIcon, RupeeIcon, SearchIcon, TrendIcon, OrdersIcon } from "./icons";
 
-type Customer = { id: string; name: string; email: string; phone: string; google: boolean; joined: string; paidOrders: number; allOrders: number; spent: number; refunded: number; lastOrder: string | null; city: string; pincode: string };
+type Customer = { id: string; name: string; email: string; phone: string; google: boolean; isOwner: boolean; joined: string; paidOrders: number; allOrders: number; spent: number; refunded: number; lastOrder: string | null; city: string; pincode: string };
 type CustomerDetail = {
-  id: string; name: string; email: string; phone: string; google: boolean; joined: string;
+  id: string; name: string; email: string; phone: string; google: boolean; isOwner: boolean; joined: string;
   totals: { paidOrders: number; allOrders: number; spent: number; refunded: number; firstOrder: string | null; lastOrder: string | null };
   addresses: { label: string; fullName: string; phone: string; address: string; city: string; state: string; pincode: string; isDefault: boolean }[];
   orders: { id: string; date: string; total: number; status: string; fulfillmentStatus: string; refundAmount: number | null; giftWrap: boolean; pincode: string; items: { name: string; colour: string; price: number; quantity: number }[] }[];
@@ -27,6 +28,9 @@ const deliveryLabels: Record<string, string> = { unfulfilled: "Not started", pro
 const filters: { key: Filter; label: string }[] = [{ key: "all", label: "All" }, { key: "buyers", label: "Buyers" }, { key: "no_orders", label: "Signed up, no order yet" }];
 
 function GoogleMark() { return <span className="google-mark" title="Signs in with Google">Google</span>; }
+function OwnerMark() { return <span className="google-mark owner-mark" title="Your owner account: shown for your own test orders, not counted in the summary">Owner</span>; }
+const clock = (d: Date) => new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit", second: "2-digit" }).format(d);
+const LIVE_MS = 5000;
 
 export function Customers({ onOpenOrder }: { onOpenOrder: (orderId: string) => void }) {
   const [customers, setCustomers] = useState<Customer[] | null>(null);
@@ -35,20 +39,25 @@ export function Customers({ onOpenOrder }: { onOpenOrder: (orderId: string) => v
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("spent");
   const [openId, setOpenId] = useState("");
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
-  useEffect(() => {
-    let live = true;
-    fetch("/api/admin/customers", { cache: "no-store" })
-      .then(async response => { const data = await response.json() as { customers?: Customer[]; error?: string }; if (!response.ok || !data.customers) throw new Error(data.error || "Customers are temporarily unavailable."); if (live) setCustomers(data.customers); })
-      .catch(cause => { if (live) setError(cause instanceof Error ? cause.message : "Customers are temporarily unavailable."); });
-    return () => { live = false; };
-  }, []);
+  useLiveRefresh(async () => {
+    try {
+      const response = await fetch("/api/admin/customers", { cache: "no-store" });
+      const data = await response.json() as { customers?: Customer[]; error?: string };
+      if (!response.ok || !data.customers) throw new Error(data.error || "Customers are temporarily unavailable.");
+      setCustomers(data.customers); setError(""); setUpdatedAt(new Date());
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Customers are temporarily unavailable."); }
+  }, LIVE_MS, []);
 
   const all = useMemo(() => customers ?? [], [customers]);
-  const buyers = all.filter(c => c.paidOrders > 0);
+  const real = all.filter(c => !c.isOwner);
+  const ownerRows = all.filter(c => c.isOwner && c.allOrders > 0);
+  const buyers = real.filter(c => c.paidOrders > 0);
   const paidOrders = buyers.reduce((s, c) => s + c.paidOrders, 0);
   const spent = buyers.reduce((s, c) => s + c.spent, 0);
-  const counts: Record<Filter, number> = { all: all.length, buyers: buyers.length, no_orders: all.length - buyers.length };
+  const allBuyers = all.filter(c => c.paidOrders > 0).length;
+  const counts: Record<Filter, number> = { all: all.length, buyers: allBuyers, no_orders: all.length - allBuyers };
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -65,13 +74,14 @@ export function Customers({ onOpenOrder }: { onOpenOrder: (orderId: string) => v
   }, [all, filter, query, sort]);
 
   return <>
-    <div className="page-heading"><div><p className="overline">PEOPLE</p><h1>Customers</h1><p className="muted">Everyone with a Kalacar account, and what they have bought.</p></div><span className="preview-pill"><i /> Read only</span></div>
+    <div className="page-heading"><div><p className="overline">PEOPLE</p><h1>Customers</h1><p className="muted">Everyone with a Kalacar account, and what they have bought.</p></div><span className="preview-pill live-pill" title="Refreshes every few seconds while this tab is open"><i /> {error && customers ? "Reconnecting…" : updatedAt ? `Live · ${clock(updatedAt)}` : "Connecting…"}</span></div>
     <section className="metrics customer-metrics" aria-label="Customer summary">
-      <article className="metric-card"><span className="metric-icon"><CustomersIcon size={14} /></span><p>Customers</p><strong>{customers ? all.length : "—"}</strong><small>Accounts, excluding the owner</small></article>
+      <article className="metric-card"><span className="metric-icon"><CustomersIcon size={14} /></span><p>Customers</p><strong>{customers ? real.length : "—"}</strong><small>Accounts, excluding the owner</small></article>
       <article className="metric-card"><span className="metric-icon"><OrdersIcon size={14} /></span><p>Buyers</p><strong>{customers ? buyers.length : "—"}</strong><small>Paid for at least one order</small></article>
       <article className="metric-card"><span className="metric-icon"><TrendIcon size={14} /></span><p>Orders per buyer</p><strong>{customers ? (buyers.length ? (paidOrders / buyers.length).toFixed(1) : "0") : "—"}</strong><small>Average paid orders</small></article>
       <article className="metric-card"><span className="metric-icon"><RupeeIcon size={14} /></span><p>Spend per buyer</p><strong>{customers ? money(buyers.length ? spent / buyers.length : 0) : "—"}</strong><small>After refunds</small></article>
     </section>
+    {ownerRows.map(c => <p className="owner-orders-note" key={c.id} role="note">Your owner account ({c.name || c.email}) has {c.paidOrders} paid {c.paidOrders === 1 ? "order" : "orders"} ({money(c.spent)}). It is listed below, but not counted in these totals.</p>)}
     <section className="panel customer-tools">
       <label className="customer-search"><SearchIcon size={15} /><input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search name, email, phone or PIN" aria-label="Search customers" /></label>
       <div className="customer-filter-row">
@@ -79,8 +89,8 @@ export function Customers({ onOpenOrder }: { onOpenOrder: (orderId: string) => v
         <label className="customer-sort">Sort<select value={sort} onChange={e => setSort(e.target.value as Sort)}><option value="spent">Most spent</option><option value="orders">Most orders</option><option value="latest">Latest order</option><option value="newest">Newest account</option></select></label>
       </div>
     </section>
-    <section className="panel">{error ? <p className="empty-orders" role="alert">{error}</p> : !customers ? <p className="empty-orders">Loading customers…</p> : shown.length ? <DataTable rows={shown} rowKey={c => c.id} columns={[
-      { key: "name", label: "Name", render: c => <button type="button" className="customer-name" onClick={() => setOpenId(c.id)}><b>{c.name || "No name"}</b>{c.google && <GoogleMark />}</button> },
+    <section className="panel">{error && !customers ? <p className="empty-orders" role="alert">{error}</p> : !customers ? <p className="empty-orders">Loading customers…</p> : shown.length ? <DataTable rows={shown} rowKey={c => c.id} columns={[
+      { key: "name", label: "Name", render: c => <button type="button" className="customer-name" onClick={() => setOpenId(c.id)}><b>{c.name || "No name"}</b>{c.google && <GoogleMark />}{c.isOwner && <OwnerMark />}</button> },
       { key: "contact", label: "Contact", render: c => <div className="customer-contact"><a href={`mailto:${c.email}`}>{c.email}</a>{c.phone && <a href={`tel:${c.phone}`}>{c.phone}</a>}</div> },
       { key: "place", label: "City / PIN", render: c => <span>{[c.city, c.pincode].filter(Boolean).join(" · ") || "—"}</span> },
       { key: "orders", label: "Orders", render: c => <span>{c.paidOrders}</span> },
@@ -96,18 +106,19 @@ export function Customers({ onOpenOrder }: { onOpenOrder: (orderId: string) => v
 function CustomerPanel({ id, onOpenOrder }: { id: string; onOpenOrder: (orderId: string) => void }) {
   const [detail, setDetail] = useState<CustomerDetail | null>(null);
   const [error, setError] = useState("");
-  useEffect(() => {
-    let live = true;
-    fetch(`/api/admin/customers/${encodeURIComponent(id)}`, { cache: "no-store" })
-      .then(async response => { const data = await response.json() as { customer?: CustomerDetail; error?: string }; if (!response.ok || !data.customer) throw new Error(data.error || "Customer details are temporarily unavailable."); if (live) setDetail(data.customer); })
-      .catch(cause => { if (live) setError(cause instanceof Error ? cause.message : "Customer details are temporarily unavailable."); });
-    return () => { live = false; };
-  }, [id]);
-  if (error) return <p role="alert" className="order-detail-error">{error}</p>;
+  useLiveRefresh(async () => {
+    try {
+      const response = await fetch(`/api/admin/customers/${encodeURIComponent(id)}`, { cache: "no-store" });
+      const data = await response.json() as { customer?: CustomerDetail; error?: string };
+      if (!response.ok || !data.customer) throw new Error(data.error || "Customer details are temporarily unavailable.");
+      setDetail(data.customer); setError("");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Customer details are temporarily unavailable."); }
+  }, LIVE_MS, [id]);
+  if (error && !detail) return <p role="alert" className="order-detail-error">{error}</p>;
   if (!detail) return <p role="status">Loading customer…</p>;
   const t = detail.totals;
   return <div className="order-detail-content">
-    <div className="customer-head"><b>{detail.name || "No name"}</b>{detail.google && <GoogleMark />}<small>Joined {date(detail.joined)}</small></div>
+    <div className="customer-head"><b>{detail.name || "No name"}</b>{detail.google && <GoogleMark />}{detail.isOwner && <OwnerMark />}<small>Joined {date(detail.joined)}</small></div>
     <div className="contact-buttons">
       <a className="secondary" href={`mailto:${detail.email}`}><MailIcon size={15} /> Email</a>
       {detail.phone && <a className="secondary" href={`tel:${detail.phone}`}><PhoneIcon size={15} /> Call</a>}

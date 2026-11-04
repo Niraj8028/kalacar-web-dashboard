@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { DataTable, FormField, ModalDrawer, StatusChip } from "./dashboard-ui";
 import { Customers } from "./customers";
+import { useLiveRefresh } from "./live";
 import { AlertIcon, ArrowRight, CheckIcon, ChevronDown, CloseIcon, EnterIcon, OrdersIcon, PackageIcon, RupeeIcon, SearchIcon, SignOutIcon, TrendIcon, sectionIcons } from "./icons";
 
 type ProductAccordion = { id: string; title: string; content: string; format?: "rows" | "text"; active: boolean; defaultOpen: boolean };
@@ -139,23 +140,12 @@ export default function Dashboard() {
     return () => { active = false; window.clearInterval(timer); };
   }, [orderFilter, section, signedIn]);
 
-  useEffect(() => {
-    if (!signedIn) return;
-    let active = true;
-    const refreshMetrics = async () => {
-      try {
-        const result = await loadAdminMetrics();
-        if (active) { setMetrics(result); setMetricsError(""); }
-      } catch (error) {
-        if (active) { setMetrics(null); setMetricsError(error instanceof Error ? error.message : "Dashboard metrics are temporarily unavailable."); }
-      } finally {
-        if (active) setMetricsLoading(false);
-      }
-    };
-    void refreshMetrics();
-    const timer = window.setInterval(refreshMetrics, 30000);
-    return () => { active = false; window.clearInterval(timer); };
-  }, [signedIn]);
+  // Overview numbers and the inbox refresh live (every 5 s while the tab is open) so a new order shows without a reload.
+  useLiveRefresh(async () => {
+    try { setMetrics(await loadAdminMetrics()); setMetricsError(""); }
+    catch (error) { setMetrics(null); setMetricsError(error instanceof Error ? error.message : "Dashboard metrics are temporarily unavailable."); }
+    finally { setMetricsLoading(false); }
+  }, 5000, [], signedIn);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
