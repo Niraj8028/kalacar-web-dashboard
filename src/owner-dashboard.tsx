@@ -296,8 +296,16 @@ function Products({ products, drafts, setDrafts, onProductSaved, onProductCreate
     if (!Object.keys(changes).length) { undo(product.id); return; }
     setSavingId(product.id); setRowMessage(null);
     try {
-      const response = await fetch(`/api/admin/products/${encodeURIComponent(product.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes) });
-      const data = await response.json().catch(() => ({})) as { error?: string };
+      // Send what the owner was looking at; the server refuses if an order changed it meanwhile.
+      const response = await fetch(`/api/admin/products/${encodeURIComponent(product.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...changes, expectedPrice: product.price, expectedStock: product.stock }) });
+      const data = await response.json().catch(() => ({})) as { error?: string; conflict?: boolean; current?: { price: number; stock: number } };
+      if (response.status === 409 && data.conflict && data.current) {
+        const current = data.current;
+        onProductSaved({ ...product, ...current }); // refresh the row's saved values; the typed draft stays
+        const parts = [current.stock !== product.stock && `stock changed from ${product.stock} to ${current.stock}`, current.price !== product.price && `price changed from ₹${product.price} to ₹${current.price}`].filter(Boolean).join(" and ");
+        setRowMessage({ id: product.id, text: `Not saved: ${parts || "this product changed"} while you were editing${current.stock < product.stock ? " (an order probably came in)" : ""}. Your new value is still in the box — check it and save again.`, error: true });
+        return;
+      }
       if (!response.ok) throw new Error(data.error || "Could not save this product.");
       onProductSaved({ ...product, ...changes });
       undo(product.id);
@@ -356,6 +364,8 @@ function ProductEditor({ product, onCancel, onSaved }: { product: Product | null
   const [placement, setPlacement] = useState(product?.placement ?? "");
   const [price, setPrice] = useState(String(product?.price ?? ""));
   const [stock, setStock] = useState(String(product?.stock ?? 0));
+  // Price/stock as stored when this editor last loaded them; sent so a sale in the meantime isn't overwritten.
+  const base = useRef({ price: product?.price ?? 0, stock: product?.stock ?? 0 });
   const [images, setImages] = useState<ProductImageDraft[]>(() => (product?.gallery?.length ? product.gallery : product?.image ? [product.image] : []).map((src, index) => ({ key: `${product?.id ?? "new"}-${index}-${src}`, src, preview: src })));
   const previewUrls = useRef(new Set<string>());
   const [accordions, setAccordions] = useState<ProductAccordionDraft[]>(() => (product?.accordions ?? []).map(toAccordionDraft));
@@ -418,6 +428,7 @@ function ProductEditor({ product, onCancel, onSaved }: { product: Product | null
       if (images.length < 1 || images.length > 5) throw new Error("Keep between 1 and 5 product images.");
       const form = new FormData();
       form.set("name", name); form.set("deity", deity); form.set("placement", placement); form.set("price", price); form.set("stock", stock);
+      if (product) { form.set("expectedPrice", String(base.current.price)); form.set("expectedStock", String(base.current.stock)); }
       const savedAccordions: ProductAccordion[] = accordions.map(({ mode, rows, ...section }) => ({ ...section, format: mode, content: mode === "rows" ? rows.filter(row => row.label.trim() && row.value.trim()).map(row => `${row.label.trim()}: ${row.value.trim()}`).join("\n") : section.content }));
       form.set("accordions", JSON.stringify(savedAccordions));
       if (product) {
@@ -434,7 +445,16 @@ function ProductEditor({ product, onCancel, onSaved }: { product: Product | null
       }
       const url = product ? `/api/admin/products/${encodeURIComponent(product.id)}` : "/api/admin/products";
       const response = await fetch(url, { method: product ? "PATCH" : "POST", body: form });
-      const result = await response.json() as { error?: string };
+      const result = await response.json() as { error?: string; conflict?: boolean; current?: { price: number; stock: number } };
+      if (response.status === 409 && result.conflict && result.current) {
+        const current = result.current, before = base.current;
+        // Fields the owner didn't touch simply take the latest stored value.
+        if (stock === String(before.stock)) setStock(String(current.stock));
+        if (price === String(before.price)) setPrice(String(current.price));
+        base.current = current;
+        const parts = [current.stock !== before.stock && `stock changed from ${before.stock} to ${current.stock}`, current.price !== before.price && `price changed from ₹${before.price} to ₹${current.price}`].filter(Boolean).join(" and ");
+        throw new Error(`Not saved: ${parts || "this product changed"} while this form was open${current.stock < before.stock ? " (an order probably came in)" : ""}. The form now shows the latest values where you hadn't changed them — check and save again.`);
+      }
       if (!response.ok) throw new Error(result.error || "Product could not be saved.");
       await onSaved();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Product could not be saved."); }
