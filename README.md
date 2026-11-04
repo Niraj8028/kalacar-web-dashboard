@@ -10,9 +10,9 @@ npm install
 ```
 
 ### 2. Configure Environment
-Copy `.env.example` to `.env.local`:
+Create `.env.local` (Git ignores it) with:
 ```bash
-cp .env.example .env.local
+VITE_API_BASE_URL=
 ```
 
 For local development against the Next.js API running on `http://127.0.0.1:3000`, the default Vite proxy automatically forwards `/api`, `/images`, and `/uploads`.

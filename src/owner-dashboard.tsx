@@ -49,7 +49,10 @@ async function loadAdminMetrics() {
 }
 
 export default function Dashboard() {
-  const [signedIn, setSignedIn] = useState(false);
+  const [owner, setOwner] = useState<{ name: string; email: string } | null>(null);
+  const [authState, setAuthState] = useState<"checking" | "signedOut" | "notOwner" | "ready">("checking");
+  const [authError, setAuthError] = useState("");
+  const signedIn = authState === "ready";
   const [section, setSection] = useState<Section>("Overview");
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState("");
@@ -93,6 +96,30 @@ export default function Dashboard() {
   }, [section]);
 
   useEffect(() => {
+    const url = new URL(window.location.href);
+    const reason = url.searchParams.get("auth_error");
+    if (reason) {
+      setAuthError({ cancelled: "Google sign-in was cancelled.", expired: "Google sign-in expired. Please try again.", unverified: "That Google email isn’t verified." }[reason] ?? "Google sign-in failed. Please try again.");
+      url.searchParams.delete("auth_error");
+      window.history.replaceState(null, "", url);
+    }
+    fetch("/api/auth/session", { cache: "no-store" })
+      .then(async response => {
+        const data = await response.json() as { user?: { name: string; email: string } | null; isOwner?: boolean; error?: string };
+        if (!response.ok) throw new Error(data.error || "Account service is unavailable.");
+        setOwner(data.user ?? null);
+        setAuthState(!data.user ? "signedOut" : data.isOwner ? "ready" : "notOwner");
+      })
+      .catch(error => { setAuthError(error instanceof Error ? error.message : "Account service is unavailable."); setAuthState("signedOut"); });
+  }, []);
+
+  async function signOut() {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+    setOwner(null); setProfileOpen(false); setAuthState("signedOut");
+  }
+
+  useEffect(() => {
+    if (!signedIn) return;
     let active = true;
     setOrdersLoading(true);
     setOrdersError("");
@@ -109,9 +136,10 @@ export default function Dashboard() {
     void refreshOrders();
     const timer = window.setInterval(refreshOrders, 2500);
     return () => { active = false; window.clearInterval(timer); };
-  }, [orderFilter, section]);
+  }, [orderFilter, section, signedIn]);
 
   useEffect(() => {
+    if (!signedIn) return;
     let active = true;
     const refreshMetrics = async () => {
       try {
@@ -126,7 +154,7 @@ export default function Dashboard() {
     void refreshMetrics();
     const timer = window.setInterval(refreshMetrics, 30000);
     return () => { active = false; window.clearInterval(timer); };
-  }, []);
+  }, [signedIn]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -194,13 +222,15 @@ export default function Dashboard() {
   // Production remains locked until server-backed owner auth is implemented.
   if (!import.meta.env.DEV) return <main className="locked"><span className="brand-mark">k.</span><h1>Owner access is not configured</h1><p>Real owner authentication must be enabled before this dashboard can be used outside local development.</p></main>;
 
+  if (authState === "checking") return <main className="login-shell"><p className="muted">Checking your sign-in…</p></main>;
   if (!signedIn) return <main className="login-shell"><section className="login-card">
-    <span className="brand-mark">k.</span><p className="overline">KALACAR · LOCAL PREVIEW</p><h1>Welcome back</h1>
-    <p className="muted">Sign in to your small shop dashboard.</p>
-    <label>Email address<input type="email" defaultValue="owner@kalacar.local" /></label>
-    <label>Password<input type="password" defaultValue="local-preview" /></label>
-    <button className="primary wide" onClick={() => setSignedIn(true)}>Sign in to local preview <span>→</span></button>
-    <p className="demo-note">Demo sign-in · no account or password is checked. Local development only.</p>
+    <span className="brand-mark">k.</span><p className="overline">KALACAR · OWNER SPACE</p><h1>Welcome back</h1>
+    <p className="muted">{authState === "notOwner" ? `${owner?.email ?? "This account"} isn’t on the owner list.` : "Sign in with the shop owner’s Google account."}</p>
+    {authError && <p className="form-error" role="alert">{authError}</p>}
+    {authState === "notOwner"
+      ? <button className="primary wide" onClick={() => void signOut()}>Sign out and use another account</button>
+      : <a className="google-button" href="/api/auth/google/start?next=/"><svg aria-hidden="true" viewBox="0 0 18 18" width="18" height="18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>Continue with Google</a>}
+    <p className="demo-note">Only emails listed in KALACAR_OWNER_EMAILS can open the dashboard.</p>
   </section></main>;
 
   const todayLabel = new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long" }).format(new Date()).toUpperCase();
@@ -216,8 +246,8 @@ export default function Dashboard() {
   </> : <div className="page-heading"><div><p className="overline">WORKSPACE</p><h1>{section}</h1><p className="muted">This workspace is planned and will be added in a later dashboard feature.</p></div><StatusChip tone="neutral">Planned</StatusChip></div>;
 
   const filteredSections = sections.filter(item => item.toLowerCase().includes(commandQuery.toLowerCase()));
-  return <div className="app-shell"><aside className="sidebar"><a className="brand" href="#"><span className="brand-mark">k.</span><span>kalacar<small>OWNER SPACE</small></span></a><p className="nav-label">WORKSPACE</p><nav>{sections.map((item, i) => <button key={item} className={section === item ? "nav-item selected" : "nav-item"} onClick={() => { setSection(item); setMessage(""); }}><span className="nav-icon">{["⌂", "▤", "◇", "♙", "%", "⚙"][i]}</span>{item}{item === "Orders" && pendingCount > 0 && <b className="nav-count">{pendingCount}</b>}</button>)}</nav><div className="sidebar-bottom"><div className="owner-avatar">S</div><div className="owner-copy"><b>Shop owner</b><small>Local preview</small></div><button className="signout" title="Sign out" aria-label="Sign out" onClick={() => setSignedIn(false)}>↪</button></div></aside>
-    <main className="main-content"><div className="mobile-brand"><span className="brand-mark">k.</span><span>kalacar <small>OWNER SPACE</small></span><button className="signout" onClick={() => setSignedIn(false)}>↪</button></div><div className="content-wrap"><header className="admin-bar"><button className="command-trigger" onClick={() => { setCommandOpen(true); setCommandQuery(""); }}><span>⌕</span> Search dashboard <kbd>⌘K</kbd></button><div className="admin-bar-actions"><span className="visibility-pill" title="A functional store visibility setting is planned for Store Settings"><i /> Visibility <strong>Planned</strong></span><button className="profile-trigger" onClick={() => setProfileOpen(!profileOpen)} aria-expanded={profileOpen}><span className="owner-avatar">S</span><span>Shop owner</span><b>⌄</b></button>{profileOpen && <div className="profile-menu"><strong>Shop owner</strong><small>Local development preview</small><button onClick={() => { setProfileOpen(false); setSignedIn(false); }}>Sign out</button></div>}</div></header><nav className="mobile-section-nav" aria-label="Dashboard sections">{sections.map((item, i) => <button key={item} className={section === item ? "selected" : ""} aria-current={section === item ? "page" : undefined} onClick={() => setSection(item)}><span>{["⌂", "▤", "◇", "♙", "%", "⚙"][i]}</span>{item}{item === "Orders" && pendingCount > 0 && <b>{pendingCount}</b>}</button>)}</nav>{bannerVisible && <aside className="announcement"><span><b>Setup in progress</b><span> Dashboard tools are being added in stages. Store visibility settings are planned.</span></span><button aria-label="Dismiss setup notice" onClick={() => { window.sessionStorage.setItem("kalacar-dashboard-banner-dismissed", "yes"); setBannerVisible(false); }}>×</button></aside>}{apiError && <div className="warning" role="status">{apiError}</div>}{content}{message && <div className="toast" role="status">{message}</div>}<footer>Kalacar owner dashboard <span>·</span> local development preview</footer></div></main>
+  return <div className="app-shell"><aside className="sidebar"><a className="brand" href="#"><span className="brand-mark">k.</span><span>kalacar<small>OWNER SPACE</small></span></a><p className="nav-label">WORKSPACE</p><nav>{sections.map((item, i) => <button key={item} className={section === item ? "nav-item selected" : "nav-item"} onClick={() => { setSection(item); setMessage(""); }}><span className="nav-icon">{["⌂", "▤", "◇", "♙", "%", "⚙"][i]}</span>{item}{item === "Orders" && pendingCount > 0 && <b className="nav-count">{pendingCount}</b>}</button>)}</nav><div className="sidebar-bottom"><div className="owner-avatar">S</div><div className="owner-copy"><b>Shop owner</b><small>Local preview</small></div><button className="signout" title="Sign out" aria-label="Sign out" onClick={() => void signOut()}>↪</button></div></aside>
+    <main className="main-content"><div className="mobile-brand"><span className="brand-mark">k.</span><span>kalacar <small>OWNER SPACE</small></span><button className="signout" onClick={() => void signOut()}>↪</button></div><div className="content-wrap"><header className="admin-bar"><button className="command-trigger" onClick={() => { setCommandOpen(true); setCommandQuery(""); }}><span>⌕</span> Search dashboard <kbd>⌘K</kbd></button><div className="admin-bar-actions"><span className="visibility-pill" title="A functional store visibility setting is planned for Store Settings"><i /> Visibility <strong>Planned</strong></span><button className="profile-trigger" onClick={() => setProfileOpen(!profileOpen)} aria-expanded={profileOpen}><span className="owner-avatar">{(owner?.name ?? "S").charAt(0).toUpperCase()}</span><span>{owner?.name ?? "Shop owner"}</span><b>⌄</b></button>{profileOpen && <div className="profile-menu"><strong>{owner?.name ?? "Shop owner"}</strong><small>{owner?.email}</small><button onClick={() => void signOut()}>Sign out</button></div>}</div></header><nav className="mobile-section-nav" aria-label="Dashboard sections">{sections.map((item, i) => <button key={item} className={section === item ? "selected" : ""} aria-current={section === item ? "page" : undefined} onClick={() => setSection(item)}><span>{["⌂", "▤", "◇", "♙", "%", "⚙"][i]}</span>{item}{item === "Orders" && pendingCount > 0 && <b>{pendingCount}</b>}</button>)}</nav>{bannerVisible && <aside className="announcement"><span><b>Setup in progress</b><span> Dashboard tools are being added in stages. Store visibility settings are planned.</span></span><button aria-label="Dismiss setup notice" onClick={() => { window.sessionStorage.setItem("kalacar-dashboard-banner-dismissed", "yes"); setBannerVisible(false); }}>×</button></aside>}{apiError && <div className="warning" role="status">{apiError}</div>}{content}{message && <div className="toast" role="status">{message}</div>}<footer>Kalacar owner dashboard <span>·</span> local development preview</footer></div></main>
     <ModalDrawer open={commandOpen} title="Go to" onClose={() => setCommandOpen(false)}><FormField label="Search sections"><input autoFocus value={commandQuery} onChange={event => setCommandQuery(event.target.value)} placeholder="Type a section name…" /></FormField><div className="command-results">{filteredSections.map(item => <button key={item} onClick={() => { setSection(item); setCommandOpen(false); }}>{item}<span>↵</span></button>)}{filteredSections.length === 0 && <p>No matching sections.</p>}</div></ModalDrawer>
   </div>;
 }

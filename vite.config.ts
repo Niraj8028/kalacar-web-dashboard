@@ -9,10 +9,11 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     server: {
-      host: "127.0.0.1",
+      host: "localhost",
       port: 5173,
       proxy: {
-        "/api": apiBase,
+        // Keep the browser's Host (localhost:5173) so Google sign-in returns to the dashboard.
+        "/api": { target: apiBase, changeOrigin: false },
         "/images": apiBase,
         "/uploads": apiBase,
       },
