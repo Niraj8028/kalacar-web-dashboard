@@ -6,9 +6,10 @@ type ProductAccordion = { id: string; title: string; content: string; format?: "
 type ProductAccordionRowDraft = { id: string; label: string; value: string };
 type ProductAccordionDraft = ProductAccordion & { mode: "rows" | "text"; rows: ProductAccordionRowDraft[] };
 type ProductImageDraft = { key: string; src?: string; file?: File; preview: string };
-type Product = { id: string; name: string; deity: string; image: string; gallery?: string[]; placement?: string; accordions?: ProductAccordion[]; price: number; stock: number };
+type Colour = { id: string; name: string; swatch: string; gallery: string[]; price: number; originalPrice: number; stock: number; sort: number; active: boolean };
+type Product = { id: string; name: string; deity: string; badge?: string; tagline?: string; image: string; gallery?: string[]; placement?: string; accordions?: ProductAccordion[]; price: number; stock: number; variants: Colour[] };
 type Order = { id: string; date: string; customer: string; item: string; total: number; status: string; fulfillmentStatus?: string; email?: string; phone?: string; address?: string; pincode?: string };
-type OrderDetail = Order & { items: { id: string; name: string; price: number; quantity: number }[]; rawStatus: string; trackingNote: string; cancelReason: string; cancelledAt: string | null; refundAmount: number | null; refundReason: string; refundReference: string; refundedAt: string | null };
+type OrderDetail = Order & { items: { id: string; name: string; variant?: string; price: number; quantity: number }[]; giftWrap?: boolean; giftWrapPrice?: number; rawStatus: string; trackingNote: string; cancelReason: string; cancelledAt: string | null; refundAmount: number | null; refundReason: string; refundReference: string; refundedAt: string | null };
 type AdminMetrics = { todayRevenue: number; monthRevenue: number; totalOrders: number; paidOrders: number; averageOrderValue: number; lowStockProducts: number; outOfStockProducts: number; lowStockThreshold: number; fulfillmentNeeded: number; paymentRecovery: number; paymentMode: "test" | "live" | "unconfigured" };
 type OrderFilter = "all" | "pending_payment" | "processing" | "on_hold" | "dispatched" | "completed" | "cancelled" | "refunded";
 type OrderStatusCounts = Record<OrderFilter, number>;
@@ -73,7 +74,7 @@ export default function Dashboard() {
 
   async function refreshProducts() {
     try {
-      const response = await fetch("/api/products", { cache: "no-store" });
+      const response = await fetch("/api/admin/products", { cache: "no-store" });
       if (!response.ok) throw new Error("Unavailable");
       const data = await response.json() as { products: Product[] };
       setProducts(data.products);
@@ -197,8 +198,14 @@ export default function Dashboard() {
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [unsavedCount]);
-  function productSaved(updated: Product) {
-    setProducts(list => list.map(item => item.id === updated.id ? { ...item, ...updated } : item));
+  /** After a colour quick-save (or a conflict), update that colour and the product's summary locally. */
+  function colourSaved(productId: string, colourId: string, values: { price: number; stock: number }) {
+    setProducts(list => list.map(item => {
+      if (item.id !== productId) return item;
+      const variants = item.variants.map(v => v.id === colourId ? { ...v, ...values, originalPrice: Math.max(v.originalPrice, values.price) } : v);
+      const visible = variants.filter(v => v.active);
+      return { ...item, variants, stock: visible.reduce((sum, v) => sum + v.stock, 0), price: visible.length ? Math.min(...visible.map(v => v.price)) : item.price };
+    }));
   }
 
 
@@ -219,7 +226,7 @@ export default function Dashboard() {
 
   const todayLabel = new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long" }).format(new Date()).toUpperCase();
   const pendingCount = orderCounts?.pending_payment ?? 0;
-  const content = section === "Products" ? <Products products={products} drafts={productDrafts} setDrafts={setProductDrafts} onProductSaved={productSaved} onProductCreated={refreshProducts} apiError={apiError} /> : section === "Orders" ? <Orders orders={orders} loading={ordersLoading} error={ordersError} filter={orderFilter} counts={orderCounts} onFilter={setOrderFilter} paymentMode={metrics?.paymentMode ?? "unconfigured"} savingOrder={savingOrder} onUpdate={updateOrder} /> : section === "Overview" ? <>
+  const content = section === "Products" ? <Products products={products} drafts={productDrafts} setDrafts={setProductDrafts} onColourSaved={colourSaved} onProductCreated={refreshProducts} apiError={apiError} /> : section === "Orders" ? <Orders orders={orders} loading={ordersLoading} error={ordersError} filter={orderFilter} counts={orderCounts} onFilter={setOrderFilter} paymentMode={metrics?.paymentMode ?? "unconfigured"} savingOrder={savingOrder} onUpdate={updateOrder} /> : section === "Overview" ? <>
     <div className="welcome-row"><div><p className="overline">{todayLabel}</p><h1>Good morning</h1><p className="muted">A clear view of your little shop.</p></div><span className="preview-pill"><i /> Local preview</span></div>
     {metrics?.paymentMode === "test" && <p className="test-mode-warning" role="note">Razorpay test mode · Orders and revenue shown here are test activity, not live sales.</p>}
     {metrics?.paymentMode === "unconfigured" && <p className="test-mode-warning" role="note">Payment mode is not configured · Do not treat these order totals as live sales.</p>}
@@ -227,7 +234,7 @@ export default function Dashboard() {
     <OperationsInbox metrics={metrics} loading={metricsLoading} error={metricsError} onRetry={() => { setMetricsLoading(true); void loadAdminMetrics().then(result => { setMetrics(result); setMetricsError(""); }).catch(error => { setMetrics(null); setMetricsError(error instanceof Error ? error.message : "Dashboard metrics are temporarily unavailable."); }).finally(() => setMetricsLoading(false)); }} onOpen={setSection} />
     <section className="panel order-panel"><div className="panel-head"><div><p className="overline">LATEST ACTIVITY</p><h2>Order requests</h2></div><button className="text-button" onClick={() => setSection("Orders")}>View all <span>→</span></button></div>{ordersLoading ? <p className="empty-orders">Loading orders…</p> : ordersError ? <p className="empty-orders" role="alert">{ordersError}</p> : orders.length ? <OrderTable orders={orders.slice(0, 2)} /> : <p className="empty-orders">No orders have been recorded.</p>}</section>
     <section className="panel stock-panel"><div className="panel-head"><div><p className="overline">INVENTORY</p><h2>Stock at a glance</h2></div><button className="text-button" onClick={() => setSection("Products")}>Manage stock <span>→</span></button></div>{products.length ? <ProductRows products={products.slice(0, 3)} /> : <p className="empty-orders">{apiError || "No products have been added."}</p>}</section>
-  </> : <div className="page-heading"><div><p className="overline">WORKSPACE</p><h1>{section}</h1><p className="muted">This workspace is planned and will be added in a later dashboard feature.</p></div><StatusChip tone="neutral">Planned</StatusChip></div>;
+  </> : section === "Settings" ? <StoreSettings /> : <div className="page-heading"><div><p className="overline">WORKSPACE</p><h1>{section}</h1><p className="muted">This workspace is planned and will be added in a later dashboard feature.</p></div><StatusChip tone="neutral">Planned</StatusChip></div>;
 
   const filteredSections = sections.filter(item => item.toLowerCase().includes(commandQuery.toLowerCase()));
   return <div className="app-shell"><aside className="sidebar"><a className="brand" href="#"><span className="brand-mark">k.</span><span>kalacar<small>OWNER SPACE</small></span></a><p className="nav-label">WORKSPACE</p><nav>{sections.map((item, i) => <button key={item} className={section === item ? "nav-item selected" : "nav-item"} onClick={() => { setSection(item); setMessage(""); }}><span className="nav-icon">{["⌂", "▤", "◇", "♙", "%", "⚙"][i]}</span>{item}{item === "Orders" && pendingCount > 0 && <b className="nav-count">{pendingCount}</b>}{item === "Products" && unsavedCount > 0 && <b className="nav-count unsaved" title="Unsaved product changes">{unsavedCount}</b>}</button>)}</nav><div className="sidebar-bottom"><div className="owner-avatar">{(owner?.name ?? "S").charAt(0).toUpperCase()}</div><div className="owner-copy"><b>{owner?.name ?? "Shop owner"}</b><small>{owner?.email ?? ""}</small></div><button className="signout" title="Sign out" aria-label="Sign out" onClick={() => void signOut()}>↪</button></div></aside>
@@ -251,157 +258,215 @@ function OperationsInbox({ metrics, loading, error, onRetry, onOpen }: { metrics
   </section>;
 }
 type ProductDraft = { price?: string; stock?: string };
+/** Unsaved quick edits keyed by colour id. */
 type ProductDrafts = Record<string, ProductDraft>;
+const LOW_STOCK = 3;
 
-/** Validates a draft against the saved product; returns per-field errors and the clean changes. */
-function checkDraft(product: Product, draft: ProductDraft) {
+/** Validates a draft against the saved colour; returns per-field errors and the clean changes. */
+function checkDraft(saved: { price: number; stock: number }, draft: ProductDraft) {
   const errors: { price?: string; stock?: string } = {};
   const changes: { price?: number; stock?: number } = {};
   if (draft.price !== undefined) {
     const value = Number(draft.price);
     if (draft.price.trim() === "" || !Number.isSafeInteger(value) || value < 1 || value > 1000000) errors.price = "Whole rupees, ₹1 or more";
-    else if (value !== product.price) changes.price = value;
+    else if (value !== saved.price) changes.price = value;
   }
   if (draft.stock !== undefined) {
     const value = Number(draft.stock);
     if (draft.stock.trim() === "" || !Number.isSafeInteger(value) || value < 0 || value > 1000000) errors.stock = "Whole number, 0 or more";
-    else if (value !== product.stock) changes.stock = value;
+    else if (value !== saved.stock) changes.stock = value;
   }
   return { errors, changes };
 }
 
-function Products({ products, drafts, setDrafts, onProductSaved, onProductCreated, apiError }: { products: Product[]; drafts: ProductDrafts; setDrafts: (update: (current: ProductDrafts) => ProductDrafts) => void; onProductSaved: (product: Product) => void; onProductCreated: () => void; apiError: string }) {
+const Chevron = ({ up = false }: { up?: boolean }) => <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d={up ? "M2.5 7.5 6 4l3.5 3.5" : "M2.5 4.5 6 8l3.5-3.5"} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+const stockLevel = (stock: number) => stock === 0 ? { tone: "out", label: "Out of stock" } : stock <= LOW_STOCK ? { tone: "low", label: `Low · ${stock} left` } : { tone: "ok", label: "In stock" };
+
+function Products({ products, drafts, setDrafts, onColourSaved, onProductCreated, apiError }: { products: Product[]; drafts: ProductDrafts; setDrafts: (update: (current: ProductDrafts) => ProductDrafts) => void; onColourSaved: (productId: string, colourId: string, values: { price: number; stock: number }) => void; onProductCreated: () => void; apiError: string }) {
   const [editorProduct, setEditorProduct] = useState<Product | null | undefined>(undefined);
   const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
   const [savingId, setSavingId] = useState("");
   const [rowMessage, setRowMessage] = useState<{ id: string; text: string; error?: boolean } | null>(null);
   // Stable alphabetical order: rows don't jump around after one is saved.
   const sorted = [...products].sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
-  const unsaved = sorted.filter(product => drafts[product.id]);
+  const colourName = (id: string) => { for (const p of products) { const c = p.variants.find(v => v.id === id); if (c) return p.variants.length > 1 ? `${p.name} (${c.name})` : p.name; } return ""; };
+  const unsaved = Object.keys(drafts).filter(id => colourName(id));
 
-  function edit(product: Product, key: "price" | "stock", value: string) {
+  function edit(colour: Colour, key: "price" | "stock", value: string) {
     setRowMessage(null);
     setDrafts(current => {
-      const next = { ...current, [product.id]: { ...current[product.id], [key]: value } };
+      const next = { ...current, [colour.id]: { ...current[colour.id], [key]: value } };
       // A field typed back to its saved value is no longer a change.
-      if (next[product.id][key] === String(product[key])) delete next[product.id][key];
-      if (!Object.keys(next[product.id]).length) delete next[product.id];
+      if (next[colour.id][key] === String(colour[key])) delete next[colour.id][key];
+      if (!Object.keys(next[colour.id]).length) delete next[colour.id];
       return next;
     });
   }
   function undo(id: string) { setDrafts(current => { const next = { ...current }; delete next[id]; return next; }); setRowMessage(null); }
-  async function save(product: Product) {
-    const { errors, changes } = checkDraft(product, drafts[product.id] ?? {});
+  async function save(product: Product, colour: Colour) {
+    const { errors, changes } = checkDraft(colour, drafts[colour.id] ?? {});
     if (Object.keys(errors).length) return;
-    if (!Object.keys(changes).length) { undo(product.id); return; }
-    setSavingId(product.id); setRowMessage(null);
+    if (!Object.keys(changes).length) { undo(colour.id); return; }
+    setSavingId(colour.id); setRowMessage(null);
+    const label = product.variants.length > 1 ? `${product.name} (${colour.name})` : product.name;
     try {
       // Send what the owner was looking at; the server refuses if an order changed it meanwhile.
-      const response = await fetch(`/api/admin/products/${encodeURIComponent(product.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...changes, expectedPrice: product.price, expectedStock: product.stock }) });
+      const response = await fetch(`/api/admin/products/${encodeURIComponent(product.id)}/variants/${encodeURIComponent(colour.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...changes, expectedPrice: colour.price, expectedStock: colour.stock }) });
       const data = await response.json().catch(() => ({})) as { error?: string; conflict?: boolean; current?: { price: number; stock: number } };
       if (response.status === 409 && data.conflict && data.current) {
         const current = data.current;
-        onProductSaved({ ...product, ...current }); // refresh the row's saved values; the typed draft stays
-        const parts = [current.stock !== product.stock && `stock changed from ${product.stock} to ${current.stock}`, current.price !== product.price && `price changed from ₹${product.price} to ₹${current.price}`].filter(Boolean).join(" and ");
-        setRowMessage({ id: product.id, text: `Not saved: ${parts || "this product changed"} while you were editing${current.stock < product.stock ? " (an order probably came in)" : ""}. Your new value is still in the box — check it and save again.`, error: true });
+        onColourSaved(product.id, colour.id, current); // refresh saved values; the typed draft stays
+        const parts = [current.stock !== colour.stock && `stock changed from ${colour.stock} to ${current.stock}`, current.price !== colour.price && `price changed from ₹${colour.price} to ₹${current.price}`].filter(Boolean).join(" and ");
+        setRowMessage({ id: colour.id, text: `Not saved: ${parts || "this colour changed"} while you were editing${current.stock < colour.stock ? " (an order probably came in)" : ""}. Your new value is still in the box — check it and save again.`, error: true });
         return;
       }
-      if (!response.ok) throw new Error(data.error || "Could not save this product.");
-      onProductSaved({ ...product, ...changes });
-      undo(product.id);
-      setRowMessage({ id: product.id, text: `Saved ${product.name}.` });
-    } catch (cause) { setRowMessage({ id: product.id, text: cause instanceof Error ? cause.message : "Could not save this product.", error: true }); }
+      if (!response.ok) throw new Error(data.error || "Could not save this colour.");
+      onColourSaved(product.id, colour.id, { price: changes.price ?? colour.price, stock: changes.stock ?? colour.stock });
+      undo(colour.id);
+      setRowMessage({ id: colour.id, text: `Saved ${label}.` });
+    } catch (cause) { setRowMessage({ id: colour.id, text: cause instanceof Error ? cause.message : "Could not save this colour.", error: true }); }
     finally { setSavingId(""); }
   }
 
+  /** Price + stock fields, change summary and Save/Undo for one colour. */
+  const colourCells = (product: Product, colour: Colour) => {
+    const draft = drafts[colour.id];
+    const { errors, changes } = checkDraft(colour, draft ?? {});
+    const label = product.variants.length > 1 ? `${product.name} ${colour.name}` : product.name;
+    const field = (key: "price" | "stock", title: string) => {
+      const changed = draft?.[key] !== undefined;
+      const value = draft?.[key] ?? String(colour[key]);
+      const step = (delta: number) => { const current = Number(value); edit(colour, "stock", String(Number.isFinite(current) ? Math.min(1000000, Math.max(0, Math.trunc(current) + delta)) : colour.stock)); };
+      return <label className={`stock-field-cell${changed ? " changed" : ""}${errors[key] ? " invalid" : ""}`}>
+        <span className="stock-field-label">{title}</span>
+        <span className={`stock-input${key === "stock" ? " has-stepper" : ""}`}>{key === "price" && <span aria-hidden="true">₹</span>}<input type="number" inputMode="numeric" min={key === "price" ? 1 : 0} step={1} aria-label={`${label} ${title.toLowerCase()}`} aria-invalid={Boolean(errors[key])} value={value} onChange={event => edit(colour, key, event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); void save(product, colour); } if (event.key === "Escape") undo(colour.id); }} />
+          {key === "stock" && <span className="stepper"><button type="button" aria-label={`Increase ${label} stock`} onClick={() => step(1)}><Chevron up /></button><button type="button" aria-label={`Decrease ${label} stock`} disabled={Number(value) <= 0} onClick={() => step(-1)}><Chevron /></button></span>}</span>
+        {errors[key] ? <small className="stock-error">{errors[key]}</small> : changed ? <small className="stock-was">was {key === "price" ? "₹" : ""}{colour[key]}</small> : null}
+      </label>;
+    };
+    const message = rowMessage?.id === colour.id ? rowMessage : null;
+    return { dirty: Boolean(draft), fields: <>{field("price", "Price")}{field("stock", "Available")}</>, after: <>
+      {draft && <div className="stock-row-save">
+        <span className="stock-change-summary">Unsaved: {[changes.price !== undefined && `price ₹${colour.price} → ₹${changes.price}`, changes.stock !== undefined && `stock ${colour.stock} → ${changes.stock}`].filter(Boolean).join(", ") || "check the highlighted field"}</span>
+        <div><button className="text-button" type="button" disabled={savingId === colour.id} onClick={() => undo(colour.id)}>Undo</button><button className="primary" type="button" disabled={savingId === colour.id || Object.keys(errors).length > 0} onClick={() => void save(product, colour)}>{savingId === colour.id ? "Saving…" : product.variants.length > 1 ? "Save colour" : "Save product"}</button></div>
+      </div>}
+      {message && <p className={`stock-row-message${message.error ? " error" : ""}`} role={message.error ? "alert" : "status"}>{message.text}</p>}
+    </> };
+  };
+
   return <>
-    <div className="page-heading"><div><p className="overline">YOUR CATALOGUE</p><h1>Products</h1><p className="muted">Change a price or stock, then save that product on its own row.</p></div><div className="heading-actions"><button className="secondary" onClick={() => setEditorProduct(null)}>+ Add product</button></div></div>
-    {unsaved.length > 0 && <p className="unsaved-banner" role="status"><b>{unsaved.length === 1 ? "1 product has" : `${unsaved.length} products have`} unsaved changes</b> — highlighted below. Save or undo each one; nothing is saved until you do.</p>}
+    <div className="page-heading"><div><p className="overline">YOUR CATALOGUE</p><h1>Products</h1><p className="muted">Change a price or stock, then save that product or colour on its own row.</p></div><div className="heading-actions"><button className="secondary" onClick={() => setEditorProduct(null)}>+ Add product</button></div></div>
+    {unsaved.length > 0 && <p className="unsaved-banner" role="status"><b>{unsaved.length === 1 ? "1 item has" : `${unsaved.length} items have`} unsaved changes</b> — highlighted below. Save or undo each one; nothing is saved until you do.</p>}
     {editorProduct !== undefined && <ProductEditor key={editorProduct?.id ?? "new"} product={editorProduct} onCancel={() => setEditorProduct(undefined)} onSaved={async () => { await onProductCreated(); setEditorProduct(undefined); }} />}
     <section className="panel">{apiError ? <p className="empty-orders" role="alert">{apiError}</p> : products.length ? <div className="stock-list">
       <div className="stock-list-head" aria-hidden="true"><span className="head-product">Product</span><span className="head-price">Price</span><span className="head-stock">Available</span></div>
       {sorted.map(product => {
-        const draft = drafts[product.id];
-        const { errors, changes } = checkDraft(product, draft ?? {});
-        const dirty = Boolean(draft);
-        const message = rowMessage?.id === product.id ? rowMessage : null;
-        const field = (key: "price" | "stock", label: string) => {
-          const changed = draft?.[key] !== undefined;
-          return <label className={`stock-field-cell${changed ? " changed" : ""}${errors[key] ? " invalid" : ""}`}>
-            <span className="stock-field-label">{label}</span>
-            <span className={`stock-input${key === "stock" ? " has-stepper" : ""}`}>{key === "price" && <span aria-hidden="true">₹</span>}<input type="number" inputMode="numeric" min={key === "price" ? 1 : 0} step={1} aria-label={`${product.name} ${label.toLowerCase()}`} aria-invalid={Boolean(errors[key])} value={draft?.[key] ?? String(product[key])} onChange={event => edit(product, key, event.target.value)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); void save(product); } if (event.key === "Escape") undo(product.id); }} />
-              {key === "stock" && <span className="stepper">
-                <button type="button" aria-label={`Increase ${product.name} stock`} onClick={() => { const current = Number(draft?.stock ?? product.stock); edit(product, "stock", String(Number.isFinite(current) ? Math.min(1000000, Math.max(0, Math.trunc(current)) + 1) : product.stock)); }}><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
-                <button type="button" aria-label={`Decrease ${product.name} stock`} disabled={Number(draft?.stock ?? product.stock) <= 0} onClick={() => { const current = Number(draft?.stock ?? product.stock); edit(product, "stock", String(Number.isFinite(current) ? Math.max(0, Math.trunc(current) - 1) : product.stock)); }}><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
-              </span>}</span>
-            {errors[key] ? <small className="stock-error">{errors[key]}</small> : changed ? <small className="stock-was">was {key === "price" ? "₹" : ""}{product[key]}</small> : null}
-          </label>;
-        };
-        return <article key={product.id} className={`stock-row${dirty ? " dirty" : ""}`} aria-label={`${product.name}${dirty ? ", unsaved changes" : ""}`}>
-          <img src={product.image} alt="" />
-          <div className="stock-name"><b>{product.name}</b><small>{product.deity}</small></div>
-          {field("price", "Price")}
-          {field("stock", "Available")}
-          <div className="stock-row-buttons">
-            <button className="secondary" type="button" onClick={() => setPreviewProduct(product)}>Preview</button>
-            <button className="secondary" type="button" disabled={dirty} title={dirty ? "Save or undo the price/stock change first" : undefined} onClick={() => setEditorProduct(product)}>Edit details</button>
-          </div>
-          {dirty && <div className="stock-row-save">
-            <span className="stock-change-summary">Unsaved: {[changes.price !== undefined && `price ₹${product.price} → ₹${changes.price}`, changes.stock !== undefined && `stock ${product.stock} → ${changes.stock}`].filter(Boolean).join(", ") || "check the highlighted field"}</span>
-            <div><button className="text-button" type="button" disabled={savingId === product.id} onClick={() => undo(product.id)}>Undo</button><button className="primary" type="button" disabled={savingId === product.id || Object.keys(errors).length > 0} onClick={() => void save(product)}>{savingId === product.id ? "Saving…" : "Save product"}</button></div>
-          </div>}
-          {message && <p className={`stock-row-message${message.error ? " error" : ""}`} role={message.error ? "alert" : "status"}>{message.text}</p>}
-        </article>;
+        const productDirty = product.variants.some(colour => drafts[colour.id]);
+        const buttons = <div className="stock-row-buttons">
+          <button className="secondary" type="button" onClick={() => setPreviewProduct(product)}>Preview</button>
+          <button className="secondary" type="button" disabled={productDirty} title={productDirty ? "Save or undo the price/stock changes first" : undefined} onClick={() => setEditorProduct(product)}>Edit details</button>
+        </div>;
+        const title = <div className="stock-name"><b>{product.name}{product.badge && <span className="product-badge">{product.badge}</span>}</b><small>{product.deity}{product.variants.length > 1 ? ` · ${product.variants.length} colours · ${product.variants.filter(v => v.active).reduce((sum, v) => sum + v.stock, 0)} in stock` : ""}</small></div>;
+        if (product.variants.length <= 1) {
+          const colour = product.variants[0];
+          if (!colour) return null;
+          const cells = colourCells(product, colour);
+          return <article key={product.id} className={`stock-row${cells.dirty ? " dirty" : ""}`} aria-label={`${product.name}${cells.dirty ? ", unsaved changes" : ""}`}>
+            <img src={product.image} alt="" />{title}{cells.fields}{buttons}{cells.after}
+          </article>;
+        }
+        return <div key={product.id} className="stock-group">
+          <article className="stock-row stock-row-parent" aria-label={product.name}><img src={product.image} alt="" />{title}<span className="stock-group-note">Set per colour below</span>{buttons}</article>
+          {product.variants.map(colour => {
+            const cells = colourCells(product, colour);
+            const level = stockLevel(colour.stock);
+            return <article key={colour.id} className={`stock-row stock-row-colour${cells.dirty ? " dirty" : ""}${colour.active ? "" : " hidden-colour"}`} aria-label={`${product.name} ${colour.name}${cells.dirty ? ", unsaved changes" : ""}`}>
+              <span className="colour-swatch" style={{ background: colour.swatch }} aria-hidden="true" />
+              <div className="stock-name"><b>{colour.name}</b><small><span className={`level-chip ${level.tone}`}>{level.label}</span>{!colour.active && <span className="level-chip hidden">Hidden in shop</span>}</small></div>
+              {cells.fields}<span />{cells.after}
+            </article>;
+          })}
+        </div>;
       })}
     </div> : <p className="empty-orders">No products have been added yet.</p>}</section>
     <ModalDrawer open={Boolean(previewProduct)} title="Product preview" onClose={() => setPreviewProduct(null)} wide>{previewProduct && <ProductPreview key={previewProduct.id} product={previewProduct} />}</ModalDrawer>
   </>;
 }
 
+type ColourDraft = { key: string; id?: string; name: string; swatch: string; price: string; originalPrice: string; stock: string; active: boolean; images: ProductImageDraft[]; base?: { price: number; stock: number } };
+const newColour = (name = "", price = "", originalPrice = ""): ColourDraft => ({ key: crypto.randomUUID(), name, swatch: "#b08d57", price, originalPrice, stock: "0", active: true, images: [] });
+const MAX_COLOURS = 8;
+
+/** Name, swatch, photos, price, regular price, stock and visibility for one colour. */
+function ColourEditor({ colour, index, count, onChange, onMove, onRemove, registerPreview }: { colour: ColourDraft; index: number; count: number; onChange: (next: ColourDraft) => void; onMove: (delta: number) => void; onRemove: () => void; registerPreview: (file: File) => string }) {
+  const set = (patch: Partial<ColourDraft>) => onChange({ ...colour, ...patch });
+  const addImages = (files: FileList | null) => {
+    if (!files?.length) return;
+    const room = 5 - colour.images.length;
+    set({ images: [...colour.images, ...Array.from(files).slice(0, room).map(file => ({ key: crypto.randomUUID(), file, preview: registerPreview(file) }))] });
+  };
+  const moveImage = (from: number, to: number) => { const next = [...colour.images]; [next[from], next[to]] = [next[to], next[from]]; set({ images: next }); };
+  const discount = Number(colour.originalPrice) > Number(colour.price) && Number(colour.price) > 0 ? Math.round((1 - Number(colour.price) / Number(colour.originalPrice)) * 100) : 0;
+  return <fieldset className={`colour-editor${colour.active ? "" : " is-hidden"}`}>
+    <legend><span className="colour-swatch" style={{ background: colour.swatch }} aria-hidden="true" />{colour.name || `Colour ${index + 1}`}{index === 0 && <span className="level-chip ok">Shown first</span>}{!colour.active && <span className="level-chip hidden">Hidden in shop</span>}</legend>
+    <div className="colour-editor-grid">
+      <label>Colour name<input required maxLength={60} placeholder="e.g. Blue, White, Skin" value={colour.name} onChange={e => set({ name: e.target.value })} /></label>
+      <label>Swatch<span className="swatch-input"><input type="color" value={colour.swatch} onChange={e => set({ swatch: e.target.value })} aria-label={`${colour.name || "Colour"} swatch`} /><code>{colour.swatch}</code></span></label>
+      <label>Selling price (₹)<input required type="number" min="1" max="1000000" step="1" value={colour.price} onChange={e => set({ price: e.target.value, ...(colour.originalPrice === colour.price ? { originalPrice: e.target.value } : {}) })} /></label>
+      <label>Regular price (₹)<input required type="number" min="1" max="1000000" step="1" value={colour.originalPrice} onChange={e => set({ originalPrice: e.target.value })} /><small className="field-hint">{discount ? `Shows as Save ${discount}%` : "Same as selling price = no discount shown"}</small></label>
+      <label>Stock<input required type="number" min="0" max="1000000" step="1" value={colour.stock} onChange={e => set({ stock: e.target.value })} /></label>
+      <label className="check-label"><input type="checkbox" checked={colour.active} onChange={e => set({ active: e.target.checked })} /> Show in shop</label>
+    </div>
+    <div className="colour-photos" aria-label={`${colour.name || "Colour"} photos`}>
+      {colour.images.map((image, i) => <div className="colour-photo" key={image.key}>
+        <img src={image.preview} alt={`${colour.name} photo ${i + 1}`} />
+        <span className="colour-photo-label">{i === 0 ? "Main" : `Photo ${i + 1}`}</span>
+        <div className="colour-photo-actions">
+          <button type="button" className="icon-button" aria-label={`Move ${colour.name} photo ${i + 1} earlier`} disabled={i === 0} onClick={() => moveImage(i, i - 1)}><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M7.5 2.5 4 6l3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
+          <button type="button" className="icon-button" aria-label={`Move ${colour.name} photo ${i + 1} later`} disabled={i === colour.images.length - 1} onClick={() => moveImage(i, i + 1)}><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M4.5 2.5 8 6 4.5 9.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg></button>
+          <button type="button" className="icon-button danger" aria-label={`Remove ${colour.name} photo ${i + 1}`} onClick={() => set({ images: colour.images.filter(item => item.key !== image.key) })}><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M3 3l6 6M9 3 3 9" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg></button>
+        </div>
+      </div>)}
+      {colour.images.length < 5 && <label className="colour-photo-add"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg><span>Add photos</span><small>{colour.images.length}/5 · JPG, PNG, WebP, AVIF · 5 MB each</small><input type="file" accept="image/jpeg,image/png,image/webp,image/avif" multiple onChange={e => { addImages(e.target.files); e.currentTarget.value = ""; }} /></label>}
+    </div>
+    <div className="colour-editor-actions">
+      <button className="secondary" type="button" disabled={index === 0} onClick={() => onMove(-1)}>Move up</button>
+      <button className="secondary" type="button" disabled={index === count - 1} onClick={() => onMove(1)}>Move down</button>
+      <button className="secondary danger" type="button" disabled={count === 1} title={count === 1 ? "A product needs at least one colour" : undefined} onClick={onRemove}>Remove colour</button>
+    </div>
+  </fieldset>;
+}
+
 function ProductEditor({ product, onCancel, onSaved }: { product: Product | null; onCancel: () => void; onSaved: () => Promise<void> }) {
   const [name, setName] = useState(product?.name ?? "");
   const [deity, setDeity] = useState(product?.deity ?? "");
+  const [badge, setBadge] = useState(product?.badge ?? "");
+  const [tagline, setTagline] = useState(product?.tagline ?? "");
   const [placement, setPlacement] = useState(product?.placement ?? "");
-  const [price, setPrice] = useState(String(product?.price ?? ""));
-  const [stock, setStock] = useState(String(product?.stock ?? 0));
-  // Price/stock as stored when this editor last loaded them; sent so a sale in the meantime isn't overwritten.
-  const base = useRef({ price: product?.price ?? 0, stock: product?.stock ?? 0 });
-  const [images, setImages] = useState<ProductImageDraft[]>(() => (product?.gallery?.length ? product.gallery : product?.image ? [product.image] : []).map((src, index) => ({ key: `${product?.id ?? "new"}-${index}-${src}`, src, preview: src })));
+  const [colours, setColours] = useState<ColourDraft[]>(() => product?.variants.length
+    ? product.variants.map(v => ({ key: v.id, id: v.id, name: v.name, swatch: v.swatch, price: String(v.price), originalPrice: String(v.originalPrice), stock: String(v.stock), active: v.active, base: { price: v.price, stock: v.stock }, images: v.gallery.map((src, i) => ({ key: `${v.id}-${i}-${src}`, src, preview: src })) }))
+    : [newColour("Standard")]);
   const previewUrls = useRef(new Set<string>());
   const [accordions, setAccordions] = useState<ProductAccordionDraft[]>(() => (product?.accordions ?? []).map(toAccordionDraft));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const existingImages = product?.gallery?.length ? product.gallery : product?.image ? [product.image] : [];
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => () => { previewUrls.current.forEach(url => URL.revokeObjectURL(url)); }, []);
-
-  function addImages(files: FileList | null) {
-    if (!files?.length) return;
-    const selected = Array.from(files);
-    if (images.length + selected.length > 5) { setError("A product can have up to 5 images."); return; }
-    const added = selected.map(file => {
-      const preview = URL.createObjectURL(file);
-      previewUrls.current.add(preview);
-      return { key: crypto.randomUUID(), file, preview };
-    });
-    setImages(current => [...current, ...added]); setError("");
+  async function deleteProduct() {
+    if (!product) return;
+    setSaving(true); setError("");
+    try {
+      const response = await fetch(`/api/admin/products/${encodeURIComponent(product.id)}`, { method: "DELETE" });
+      const result = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(result.error || "Could not delete the product.");
+      await onSaved();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not delete the product."); setConfirmDelete(false); }
+    finally { setSaving(false); }
   }
-
-  function replaceImage(key: string, file?: File) {
-    if (!file) return;
-    const preview = URL.createObjectURL(file);
-    previewUrls.current.add(preview);
-    const previous = images.find(image => image.key === key);
-    if (previous?.file && previewUrls.current.delete(previous.preview)) URL.revokeObjectURL(previous.preview);
-    setImages(current => current.map(image => image.key === key ? { ...image, src: undefined, file, preview } : image));
-    setError("");
-  }
-
-  function removeImage(key: string) {
-    const image = images.find(item => item.key === key);
-    if (image?.file && previewUrls.current.delete(image.preview)) URL.revokeObjectURL(image.preview);
-    setImages(current => current.filter(item => item.key !== key));
-  }
+  const registerPreview = (file: File) => { const url = URL.createObjectURL(file); previewUrls.current.add(url); return url; };
+  const setColour = (key: string, next: ColourDraft) => setColours(current => current.map(c => c.key === key ? next : c));
+  const moveColour = (index: number, delta: number) => setColours(current => { const next = [...current]; [next[index], next[index + delta]] = [next[index + delta], next[index]]; return next; });
 
   function addSection(title = "") {
     setAccordions(current => [...current, { id: crypto.randomUUID(), title, content: "", mode: "rows", rows: [{ id: crypto.randomUUID(), label: "", value: "" }], active: true, defaultOpen: false }]);
@@ -425,35 +490,34 @@ function ProductEditor({ product, onCancel, onSaved }: { product: Product | null
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true); setError("");
     try {
-      if (images.length < 1 || images.length > 5) throw new Error("Keep between 1 and 5 product images.");
+      const missing = colours.find(c => c.images.length < 1);
+      if (missing) throw new Error(`Add at least one photo for “${missing.name || "a colour"}”.`);
+      if (!colours.some(c => c.active)) throw new Error("Keep at least one colour visible in the shop.");
       const form = new FormData();
-      form.set("name", name); form.set("deity", deity); form.set("placement", placement); form.set("price", price); form.set("stock", stock);
-      if (product) { form.set("expectedPrice", String(base.current.price)); form.set("expectedStock", String(base.current.stock)); }
+      form.set("name", name); form.set("deity", deity); form.set("badge", badge); form.set("tagline", tagline); form.set("placement", placement);
       const savedAccordions: ProductAccordion[] = accordions.map(({ mode, rows, ...section }) => ({ ...section, format: mode, content: mode === "rows" ? rows.filter(row => row.label.trim() && row.value.trim()).map(row => `${row.label.trim()}: ${row.value.trim()}`).join("\n") : section.content }));
       form.set("accordions", JSON.stringify(savedAccordions));
-      if (product) {
-        let uploadIndex = 0;
-        const uploadFiles: File[] = [];
-        const manifest = images.map(image => {
-          if (image.file) { uploadFiles.push(image.file); return { kind: "upload", uploadIndex: uploadIndex++ }; }
-          return { kind: "existing", src: image.src };
-        });
-        form.set("galleryManifest", JSON.stringify(manifest));
-        uploadFiles.forEach(file => form.append("images", file));
-      } else {
-        images.forEach(image => { if (image.file) form.append("images", image.file); });
-      }
+      let uploadIndex = 0;
+      const payload = colours.map(c => ({
+        id: c.id, name: c.name.trim(), swatch: c.swatch, price: Number(c.price), originalPrice: Number(c.originalPrice || c.price), stock: Number(c.stock), active: c.active,
+        expectedPrice: c.base?.price, expectedStock: c.base?.stock,
+        gallery: c.images.map(image => { if (image.file) { form.append("images", image.file); return { kind: "upload", uploadIndex: uploadIndex++ }; } return { kind: "existing", src: image.src }; }),
+      }));
+      form.set("colours", JSON.stringify(payload));
       const url = product ? `/api/admin/products/${encodeURIComponent(product.id)}` : "/api/admin/products";
       const response = await fetch(url, { method: product ? "PATCH" : "POST", body: form });
-      const result = await response.json() as { error?: string; conflict?: boolean; current?: { price: number; stock: number } };
-      if (response.status === 409 && result.conflict && result.current) {
-        const current = result.current, before = base.current;
-        // Fields the owner didn't touch simply take the latest stored value.
-        if (stock === String(before.stock)) setStock(String(current.stock));
-        if (price === String(before.price)) setPrice(String(current.price));
-        base.current = current;
-        const parts = [current.stock !== before.stock && `stock changed from ${before.stock} to ${current.stock}`, current.price !== before.price && `price changed from ₹${before.price} to ₹${current.price}`].filter(Boolean).join(" and ");
-        throw new Error(`Not saved: ${parts || "this product changed"} while this form was open${current.stock < before.stock ? " (an order probably came in)" : ""}. The form now shows the latest values where you hadn't changed them — check and save again.`);
+      const result = await response.json() as { error?: string; conflict?: boolean; colour?: string; current?: { price: number; stock: number } };
+      if (response.status === 409 && result.conflict && result.current && result.colour) {
+        const current = result.current;
+        let detail = "";
+        setColours(list => list.map(c => {
+          if (c.name.trim() !== result.colour || !c.base) return c;
+          const before = c.base;
+          detail = [current.stock !== before.stock && `stock changed from ${before.stock} to ${current.stock}`, current.price !== before.price && `price changed from ₹${before.price} to ₹${current.price}`].filter(Boolean).join(" and ");
+          // Fields the owner didn't touch simply take the latest stored value.
+          return { ...c, base: current, stock: c.stock === String(before.stock) ? String(current.stock) : c.stock, price: c.price === String(before.price) ? String(current.price) : c.price };
+        }));
+        throw new Error(`Not saved: “${result.colour}” ${detail || "changed"} while this form was open (an order may have come in). The form now shows the latest values where you hadn't changed them — check and save again.`);
       }
       if (!response.ok) throw new Error(result.error || "Product could not be saved.");
       await onSaved();
@@ -463,18 +527,27 @@ function ProductEditor({ product, onCancel, onSaved }: { product: Product | null
 
   return <form className="panel add-product-form" onSubmit={submit}>
     <div className="panel-head"><div><p className="overline">{product ? "EDIT CATALOGUE ITEM" : "NEW CATALOGUE ITEM"}</p><h2>{product ? `Edit ${product.name}` : "Add a product"}</h2></div><button className="secondary" type="button" onClick={onCancel}>Close</button></div>
-    <div className="form-grid"><label>Product name<input required minLength={2} maxLength={160} value={name} onChange={e => setName(e.target.value)} /></label><label>Deity<input required minLength={2} maxLength={80} value={deity} onChange={e => setDeity(e.target.value)} /></label><label>Short description / placement (optional)<textarea maxLength={255} value={placement} onChange={e => setPlacement(e.target.value)} /></label><label>Price (₹)<input required type="number" min="1" max="1000000" step="1" value={price} onChange={e => setPrice(e.target.value)} /></label><label>Stock quantity<input required type="number" min="0" max="1000000" step="1" value={stock} onChange={e => setStock(e.target.value)} /></label></div>
-    {existingImages.length > 0 && <p className="file-summary">Replace an individual image, remove it, or use the arrows to change gallery order. The first image is the main product image.</p>}
-    <div className="product-image-editor" aria-label="Product image gallery">
-      {images.map((image, index) => <div className="product-image-editor-item" key={image.key}><img src={image.preview} alt={`Product image ${index + 1}`} /><div className="product-image-editor-actions"><strong>{index === 0 ? "Main image" : `Image ${index + 1}`}</strong><label className="secondary image-replace-control">Replace<input type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={e => replaceImage(image.key, e.target.files?.[0])} /></label><button className="secondary" type="button" aria-label={`Move image ${index + 1} up`} disabled={index === 0} onClick={() => setImages(current => { const next = [...current]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next; })}>↑</button><button className="secondary" type="button" aria-label={`Move image ${index + 1} down`} disabled={index === images.length - 1} onClick={() => setImages(current => { const next = [...current]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; return next; })}>↓</button><button className="secondary" type="button" aria-label={`Remove image ${index + 1}`} onClick={() => removeImage(image.key)}>Remove</button></div></div>)}
+    <div className="form-grid">
+      <label>Product name<input required minLength={2} maxLength={160} value={name} onChange={e => setName(e.target.value)} /></label>
+      <label>Deity<input required minLength={2} maxLength={80} value={deity} onChange={e => setDeity(e.target.value)} /></label>
+      <label>Badge (optional)<input maxLength={40} placeholder="e.g. Flagship, New, Festive" value={badge} onChange={e => setBadge(e.target.value)} /><small className="field-hint">Small label on the product photo and card.</small></label>
+      <label>Tagline (optional)<input maxLength={120} placeholder="A short line under the name" value={tagline} onChange={e => setTagline(e.target.value)} /></label>
+      <label className="form-grid-wide">Short description / placement (optional)<textarea maxLength={255} value={placement} onChange={e => setPlacement(e.target.value)} /></label>
     </div>
-    <label className="upload-field">Add images <span>Choose additional JPG, PNG, WebP, or AVIF photos, up to 5 MB each; maximum 5 images per product.</span><input disabled={images.length >= 5} type="file" accept="image/jpeg,image/png,image/webp,image/avif" multiple onChange={e => { addImages(e.target.files); e.currentTarget.value = ""; }} /></label>
+    <div className="colours-editor">
+      <div className="accordion-editor-heading"><div><p className="overline">COLOURS</p><h3>Colours, photos, price and stock</h3><p>Each colour has its own photos, price and stock. The first visible colour is shown first in the shop; hidden colours keep their stock but can't be bought.</p></div>
+        <button className="secondary" type="button" disabled={colours.length >= MAX_COLOURS} onClick={() => setColours(current => [...current, newColour("", current[0]?.price ?? "", current[0]?.originalPrice ?? "")])}>+ Add colour</button></div>
+      {colours.map((colour, index) => <ColourEditor key={colour.key} colour={colour} index={index} count={colours.length} registerPreview={registerPreview} onChange={next => setColour(colour.key, next)} onMove={delta => moveColour(index, delta)} onRemove={() => setColours(current => current.filter(c => c.key !== colour.key))} />)}
+    </div>
     <div className="accordion-editor"><div className="accordion-editor-heading"><div><p className="overline">PRODUCT DETAILS</p><h3>Detail accordions</h3><p>Add multiple titled sections; each can contain multiple key/value pairs. Only use facts confirmed for this product. Inactive sections stay hidden on the storefront.</p></div><button className="secondary" type="button" disabled={accordions.length > 8} onClick={addCommonSections}>Add common sections</button></div>
-      {accordions.map((section, index) => <div className="accordion-editor-row" key={section.id}><div className="accordion-editor-controls"><label>Accordion title<input required={section.active} maxLength={80} value={section.title} onChange={e => setSection(section.id, { title: e.target.value })} /></label><label>Content format<select value={section.mode} onChange={e => setSectionMode(section, e.target.value as "rows" | "text")}><option value="rows">Key/value details</option><option value="text">Paragraph text</option></select></label>{section.mode === "rows" ? <div className="accordion-content-rows"><div className="accordion-content-rows-heading"><strong>Information rows</strong><span>Shown as a two-column table</span></div>{section.rows.map((row, rowIndex) => <div className="accordion-content-row" key={row.id}><label>Label<input required={section.active} maxLength={80} placeholder="e.g. Brand name" value={row.label} onChange={e => setSection(section.id, { rows: section.rows.map(item => item.id === row.id ? { ...item, label: e.target.value } : item) })} /></label><label>Value<input required={section.active} maxLength={500} placeholder="Enter owner-confirmed value" value={row.value} onChange={e => setSection(section.id, { rows: section.rows.map(item => item.id === row.id ? { ...item, value: e.target.value } : item) })} /></label><button className="secondary" type="button" aria-label={`Remove information row ${rowIndex + 1}`} disabled={section.rows.length === 1} onClick={() => setSection(section.id, { rows: section.rows.filter(item => item.id !== row.id) })}>Remove row</button></div>)}<button className="secondary" type="button" disabled={section.rows.length >= 20} onClick={() => setSection(section.id, { rows: [...section.rows, { id: crypto.randomUUID(), label: "", value: "" }] })}>+ Add information row</button></div> : <label>Paragraph content<textarea required={section.active} maxLength={3000} value={section.content} onChange={e => setSection(section.id, { content: e.target.value })} /></label>}<label className="check-label"><input type="checkbox" checked={section.active} onChange={e => setSection(section.id, { active: e.target.checked })} /> Show on storefront</label><label className="check-label"><input type="checkbox" checked={section.defaultOpen} onChange={e => setSection(section.id, { defaultOpen: e.target.checked })} /> Open by default</label></div><div className="accordion-row-actions"><button className="secondary" type="button" aria-label="Move section up" disabled={index === 0} onClick={() => setAccordions(current => { const next = [...current]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next; })}>↑</button><button className="secondary" type="button" aria-label="Move section down" disabled={index === accordions.length - 1} onClick={() => setAccordions(current => { const next = [...current]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; return next; })}>↓</button><button className="secondary" type="button" onClick={() => setAccordions(current => current.filter(item => item.id !== section.id))}>Delete section</button></div></div>)}
+      {accordions.map((section, index) => <div className="accordion-editor-row" key={section.id}><div className="accordion-editor-controls"><label>Accordion title<input required={section.active} maxLength={80} value={section.title} onChange={e => setSection(section.id, { title: e.target.value })} /></label><label>Content format<select value={section.mode} onChange={e => setSectionMode(section, e.target.value as "rows" | "text")}><option value="rows">Key/value details</option><option value="text">Paragraph text</option></select></label>{section.mode === "rows" ? <div className="accordion-content-rows"><div className="accordion-content-rows-heading"><strong>Information rows</strong><span>Shown as a two-column table</span></div>{section.rows.map((row, rowIndex) => <div className="accordion-content-row" key={row.id}><label>Label<input required={section.active} maxLength={80} placeholder="e.g. Brand name" value={row.label} onChange={e => setSection(section.id, { rows: section.rows.map(item => item.id === row.id ? { ...item, label: e.target.value } : item) })} /></label><label>Value<input required={section.active} maxLength={500} placeholder="Enter owner-confirmed value" value={row.value} onChange={e => setSection(section.id, { rows: section.rows.map(item => item.id === row.id ? { ...item, value: e.target.value } : item) })} /></label><button className="secondary" type="button" aria-label={`Remove information row ${rowIndex + 1}`} disabled={section.rows.length === 1} onClick={() => setSection(section.id, { rows: section.rows.filter(item => item.id !== row.id) })}>Remove row</button></div>)}<button className="secondary" type="button" disabled={section.rows.length >= 20} onClick={() => setSection(section.id, { rows: [...section.rows, { id: crypto.randomUUID(), label: "", value: "" }] })}>+ Add information row</button></div> : <label>Paragraph content<textarea required={section.active} maxLength={3000} value={section.content} onChange={e => setSection(section.id, { content: e.target.value })} /></label>}<label className="check-label"><input type="checkbox" checked={section.active} onChange={e => setSection(section.id, { active: e.target.checked })} /> Show on storefront</label><label className="check-label"><input type="checkbox" checked={section.defaultOpen} onChange={e => setSection(section.id, { defaultOpen: e.target.checked })} /> Open by default</label></div><div className="accordion-row-actions"><button className="secondary" type="button" aria-label="Move section up" disabled={index === 0} onClick={() => setAccordions(current => { const next = [...current]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next; })}>Move up</button><button className="secondary" type="button" aria-label="Move section down" disabled={index === accordions.length - 1} onClick={() => setAccordions(current => { const next = [...current]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; return next; })}>Move down</button><button className="secondary" type="button" onClick={() => setAccordions(current => current.filter(item => item.id !== section.id))}>Delete section</button></div></div>)}
       <button className="secondary" type="button" disabled={accordions.length >= 12} onClick={() => addSection()}>+ Add detail accordion</button>
     </div>
     {error && <p className="form-error" role="alert">{error}</p>}
-    <div className="form-actions"><span>Use owner-confirmed details and prices. No discounts are added automatically.</span><button className="primary" disabled={saving}>{saving ? "Saving…" : product ? "Save product" : "Add product"}</button></div>
+    {product && <div className="danger-zone">{confirmDelete
+      ? <><p><b>Delete {product.name}?</b> Its colours, prices and stock are removed from the shop. Past orders keep their records. This can't be undone.</p><div><button className="primary danger" type="button" disabled={saving} onClick={() => void deleteProduct()}>{saving ? "Deleting…" : "Yes, delete product"}</button><button className="text-button" type="button" disabled={saving} onClick={() => setConfirmDelete(false)}>Keep it</button></div></>
+      : <><p>Not selling this murti anymore? Hide its colours, or delete the product.</p><button className="secondary danger" type="button" onClick={() => setConfirmDelete(true)}>Delete product</button></>}</div>}
+    <div className="form-actions"><span>Use owner-confirmed details and prices. A discount only shows when the regular price is higher.</span><button className="primary" disabled={saving}>{saving ? "Saving…" : product ? "Save product" : "Add product"}</button></div>
   </form>;
 }
 
@@ -547,7 +620,7 @@ function Orders({ orders, loading, error, filter, counts, onFilter, paymentMode,
     <section className="panel">{error ? <p className="empty-orders" role="alert">{error}</p> : loading ? <p className="empty-orders">Loading orders…</p> : orders.length ? <><p className="muted order-limit-note">Showing {orders.length} most recent of {total} matching orders.</p><DataTable columns={[{ key: "customer", label: "Customer", render: o => <div className="table-customer"><b>{o.customer}</b><small>{o.item}</small></div> }, { key: "order", label: "Order", render: o => <span>{o.id.length > 12 ? o.id.slice(0, 8) : o.id}</span> }, { key: "status", label: "Status", render: o => <StatusChip tone={statusTone(o.status)}>{o.status}</StatusChip> }, { key: "total", label: "Total", render: o => <b>₹{o.total}</b> }, { key: "actions", label: "Actions", render: o => { const fulfillment = o.fulfillmentStatus || "unfulfilled"; const next = ({ unfulfilled: ["processing", "Prepare"], processing: ["dispatched", "Dispatch"], dispatched: ["completed", "Complete"] } as Record<string, [string, string]>)[fulfillment]; return <div className="order-actions"><button className="text-button" type="button" onClick={() => void openDetails(o.id)}>View details</button>{o.status === "Paid" && next ? <button className="fulfillment-button" type="button" disabled={savingOrder === o.id} onClick={() => onUpdate(o.id, next[0])}>{savingOrder === o.id ? "Saving…" : next[1]}</button> : <span className="table-muted">{fulfillment.replaceAll("_", " ")}</span>}</div>; } }]} rows={orders} rowKey={o => o.id} /></> : <p className="empty-orders">{filter === "all" ? "No orders have been recorded." : `No ${orderFilters.find(item => item.key === filter)?.label.toLowerCase()} orders.`}</p>}</section>
     <ModalDrawer open={Boolean(detailOrderId)} title={detail ? `Order ${detail.id.slice(0, 8)}` : "Order details"} onClose={() => { setDetailOrderId(""); setDetail(null); setDetailError(""); }}><div className="order-detail-content">{detailLoading ? <p role="status">Loading saved order details…</p> : detailError && !detail ? <p role="alert" className="order-detail-error">{detailError}</p> : detail ? <>
       <div className="order-detail-summary"><div><span>Customer</span><b>{detail.customer}</b></div><div><span>Order status</span><StatusChip tone={statusTone(detail.status)}>{detail.status}</StatusChip></div><div><span>Email</span><a href={`mailto:${detail.email}`}>{detail.email}</a></div><div><span>Phone</span><a href={`tel:${detail.phone}`}>{detail.phone}</a></div></div>
-      <section className="order-detail-section"><h3>Items</h3>{detail.items.length ? <div className="order-detail-items">{detail.items.map((item, index) => <div className="order-detail-item" key={`${item.id}-${index}`}><span>{item.name}<small>{item.quantity} × ₹{item.price}</small></span><b>₹{item.quantity * item.price}</b></div>)}</div> : <p>No item rows were saved for this order.</p>}<div className="order-detail-total"><span>Order total</span><b>₹{detail.total}</b></div></section>
+      <section className="order-detail-section"><h3>Items</h3>{detail.items.length ? <div className="order-detail-items">{detail.items.map((item, index) => <div className="order-detail-item" key={`${item.id}-${index}`}><span>{item.name}{item.variant && item.variant !== "Standard" && <em className="order-item-colour">{item.variant}</em>}<small>{item.quantity} × ₹{item.price}</small></span><b>₹{item.quantity * item.price}</b></div>)}{detail.giftWrap && <div className="order-detail-item gift-line"><span>Gift-ready packaging<small>Wrap this order as a gift</small></span><b>₹{detail.giftWrapPrice ?? 0}</b></div>}</div> : <p>No item rows were saved for this order.</p>}<div className="order-detail-total"><span>Order total</span><b>₹{detail.total}</b></div></section>
       <section className="order-detail-section"><div className="order-detail-heading"><h3>Delivery address</h3><button className="secondary" type="button" onClick={() => void copyAddress()}>{addressCopied ? "Copied" : "Copy address"}</button></div><address>{detail.customer}{detail.phone && <><br />{detail.phone}</>}{detail.address && <><br />{detail.address}</>}{detail.pincode && <><br />PIN {detail.pincode}</>}</address></section>
       <OrderActions key={detail.id} order={detail} onChanged={() => void refreshDetails(detail.id)} />
       <section className="order-detail-section"><h3>Customer note</h3><p>No customer note was provided with this order.</p></section>
@@ -625,3 +698,54 @@ function OrderActions({ order, onChanged }: { order: OrderDetail; onChanged: () 
 }
 
 function OrderTable({ orders }: { orders: Order[] }) { return <div className="orders-list">{orders.map(o => { const date = String(o.date); const dateLabel = date.includes("T") ? date.replace("T", " ").slice(0, 16) : date; return <article className="order-row" key={o.id}><div className="order-symbol">⌑</div><div className="order-main"><b>{o.customer}</b><small>{o.item}</small>{o.phone && <small>{o.phone} · {o.address}, {o.pincode}</small>}</div><div className="order-meta"><small>{o.id.length > 12 ? o.id.slice(0, 8) : o.id} · {dateLabel}</small><span className={`status ${o.status.toLowerCase().replaceAll(" ", "-")}`}>{o.status}</span></div><b className="order-total">₹{o.total}</b></article>; })}</div>; }
+
+type GiftWrap = { enabled: boolean; price: number; title: string; description: string };
+
+/** Store settings the owner changes season to season. */
+function StoreSettings() {
+  const [saved, setSaved] = useState<GiftWrap | null>(null);
+  const [draft, setDraft] = useState<{ enabled: boolean; price: string; title: string; description: string } | null>(null);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let active = true;
+    fetch("/api/admin/settings", { cache: "no-store" }).then(async response => {
+      const data = await response.json() as { giftWrap?: GiftWrap; error?: string };
+      if (!response.ok || !data.giftWrap) throw new Error(data.error || "Settings are unavailable right now.");
+      if (active) { setSaved(data.giftWrap); setDraft({ ...data.giftWrap, price: String(data.giftWrap.price) }); }
+    }).catch(cause => { if (active) setError(cause instanceof Error ? cause.message : "Settings are unavailable right now."); });
+    return () => { active = false; };
+  }, []);
+  const dirty = Boolean(saved && draft && (draft.enabled !== saved.enabled || draft.price !== String(saved.price) || draft.title !== saved.title || draft.description !== saved.description));
+  async function save() {
+    if (!draft) return;
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const response = await fetch("/api/admin/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ giftWrap: { ...draft, price: Number(draft.price) } }) });
+      const data = await response.json() as { giftWrap?: GiftWrap; error?: string };
+      if (!response.ok || !data.giftWrap) throw new Error(data.error || "Could not save settings.");
+      setSaved(data.giftWrap); setDraft({ ...data.giftWrap, price: String(data.giftWrap.price) });
+      setMessage(data.giftWrap.enabled ? `Saved. Customers now see gift packaging for ₹${data.giftWrap.price} in the cart.` : "Saved. Gift packaging is turned off in the shop.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save settings."); }
+    finally { setBusy(false); }
+  }
+  return <>
+    <div className="page-heading"><div><p className="overline">STORE</p><h1>Settings</h1><p className="muted">Offers and options you can change any time — no code needed.</p></div></div>
+    <section className={`panel settings-card${dirty ? " dirty" : ""}`} aria-labelledby="gift-title">
+      <div className="panel-head"><div><p className="overline">CART ADD-ON</p><h2 id="gift-title">Gift-ready packaging</h2></div>{saved && <StatusChip tone={saved.enabled ? "success" : "neutral"}>{saved.enabled ? "On in shop" : "Off"}</StatusChip>}</div>
+      {error && <p className="order-detail-error" role="alert">{error}</p>}
+      {!draft ? !error && <p className="muted">Loading settings…</p> : <>
+        <label className="toggle-row"><input type="checkbox" checked={draft.enabled} onChange={e => setDraft({ ...draft, enabled: e.target.checked })} /><span><b>Offer gift packaging in the cart</b><small>Customers can tick it before checkout; the price is added to their total.</small></span></label>
+        <div className="settings-grid">
+          <label>Price (₹)<input type="number" inputMode="numeric" min="0" max="10000" step="1" value={draft.price} onChange={e => setDraft({ ...draft, price: e.target.value })} /><small className="field-hint">Change it for festivals or offers; 0 makes it free.</small></label>
+          <label>Title<input maxLength={60} value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} /></label>
+          <label className="settings-wide">What's included (optional)<textarea maxLength={200} placeholder="e.g. Premium wrapping, a handwritten note and a gift card" value={draft.description} onChange={e => setDraft({ ...draft, description: e.target.value })} /></label>
+        </div>
+        <div className="settings-preview" aria-label="Cart preview"><span className="overline">PREVIEW IN CART</span><div className="gift-preview"><span className="gift-check" aria-hidden="true" /><div><b>{draft.title || "Gift-ready packaging"}</b>{draft.description && <small>{draft.description}</small>}</div><strong>{Number(draft.price) > 0 ? `+₹${Number(draft.price)}` : "Free"}</strong></div>{!draft.enabled && <small className="field-hint">Hidden from customers while switched off.</small>}</div>
+        {message && <p className="order-saved" role="status">{message}</p>}
+        <div className="settings-actions">{dirty && <span className="stock-change-summary">Unsaved changes</span>}<button className="text-button" type="button" disabled={!dirty || busy} onClick={() => saved && setDraft({ ...saved, price: String(saved.price) })}>Undo</button><button className="primary" type="button" disabled={!dirty || busy} onClick={() => void save()}>{busy ? "Saving…" : "Save settings"}</button></div>
+      </>}
+    </section>
+  </>;
+}
