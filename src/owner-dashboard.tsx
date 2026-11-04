@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { DataTable, FormField, ModalDrawer, StatusChip } from "./dashboard-ui";
+import { Customers } from "./customers";
 import { AlertIcon, ArrowRight, CheckIcon, ChevronDown, CloseIcon, EnterIcon, OrdersIcon, PackageIcon, RupeeIcon, SearchIcon, SignOutIcon, TrendIcon, sectionIcons } from "./icons";
 
 type ProductAccordion = { id: string; title: string; content: string; format?: "rows" | "text"; active: boolean; defaultOpen: boolean };
@@ -73,6 +74,7 @@ export default function Dashboard() {
   const [message, setMessage] = useState("");
   const [apiError, setApiError] = useState("");
   const [savingOrder, setSavingOrder] = useState("");
+  const [openOrderId, setOpenOrderId] = useState("");
 
   async function refreshProducts() {
     try {
@@ -228,7 +230,7 @@ export default function Dashboard() {
 
   const todayLabel = new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long" }).format(new Date()).toUpperCase();
   const pendingCount = orderCounts?.pending_payment ?? 0;
-  const content = section === "Products" ? <Products products={products} drafts={productDrafts} setDrafts={setProductDrafts} onColourSaved={colourSaved} onProductCreated={refreshProducts} apiError={apiError} /> : section === "Orders" ? <Orders orders={orders} loading={ordersLoading} error={ordersError} filter={orderFilter} counts={orderCounts} onFilter={setOrderFilter} paymentMode={metrics?.paymentMode ?? "unconfigured"} savingOrder={savingOrder} onUpdate={updateOrder} /> : section === "Overview" ? <>
+  const content = section === "Products" ? <Products products={products} drafts={productDrafts} setDrafts={setProductDrafts} onColourSaved={colourSaved} onProductCreated={refreshProducts} apiError={apiError} /> : section === "Orders" ? <Orders orders={orders} loading={ordersLoading} error={ordersError} filter={orderFilter} counts={orderCounts} onFilter={setOrderFilter} paymentMode={metrics?.paymentMode ?? "unconfigured"} savingOrder={savingOrder} onUpdate={updateOrder} openOrderId={openOrderId} onOrderOpened={() => setOpenOrderId("")} /> : section === "Customers" ? <Customers onOpenOrder={id => { setOrderFilter("all"); setOpenOrderId(id); setSection("Orders"); }} /> : section === "Overview" ? <>
     <div className="welcome-row"><div><p className="overline">{todayLabel}</p><h1>Good morning</h1><p className="muted">A clear view of your little shop.</p></div><span className="preview-pill"><i /> Local preview</span></div>
     {metrics?.paymentMode === "test" && <p className="test-mode-warning" role="note">Razorpay test mode · Orders and revenue shown here are test activity, not live sales.</p>}
     {metrics?.paymentMode === "unconfigured" && <p className="test-mode-warning" role="note">Payment mode is not configured · Do not treat these order totals as live sales.</p>}
@@ -611,7 +613,7 @@ function ProductPreviewAccordionContent({ content, format }: { content: string; 
 }
 const statusTone = (status: string): "success" | "warning" | "danger" | "neutral" =>
   status === "Paid" ? "success" : ["Refunded", "Cancelled"].includes(status) ? "neutral" : ["Paid after cancel", "Payment failed", "Payment setup failed"].includes(status) ? "danger" : "warning";
-function Orders({ orders, loading, error, filter, counts, onFilter, paymentMode, savingOrder, onUpdate }: { orders: Order[]; loading: boolean; error: string; filter: OrderFilter; counts: OrderStatusCounts | null; onFilter: (filter: OrderFilter) => void; paymentMode: AdminMetrics["paymentMode"]; savingOrder: string; onUpdate: (id: string, status: string) => void }) {
+function Orders({ orders, loading, error, filter, counts, onFilter, paymentMode, savingOrder, onUpdate, openOrderId = "", onOrderOpened }: { orders: Order[]; loading: boolean; error: string; filter: OrderFilter; counts: OrderStatusCounts | null; onFilter: (filter: OrderFilter) => void; paymentMode: AdminMetrics["paymentMode"]; savingOrder: string; onUpdate: (id: string, status: string) => void; openOrderId?: string; onOrderOpened?: () => void }) {
   const [detailOrderId, setDetailOrderId] = useState("");
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -627,6 +629,13 @@ function Orders({ orders, loading, error, filter, counts, onFilter, paymentMode,
     } catch (cause) { setDetailError(cause instanceof Error ? cause.message : "Order details are temporarily unavailable."); }
     finally { setDetailLoading(false); }
   }
+  // Opened from another section (a customer's order history): show that order's details once.
+  useEffect(() => {
+    if (!openOrderId) return;
+    const timer = window.setTimeout(() => { void openDetails(openOrderId); onOrderOpened?.(); });
+    return () => window.clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openOrderId]);
   /** Re-reads the open order without clearing the drawer, so confirmation messages stay visible. */
   async function refreshDetails(id: string) {
     try {
