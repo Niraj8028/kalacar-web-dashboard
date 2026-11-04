@@ -8,7 +8,7 @@ type ProductAccordionDraft = ProductAccordion & { mode: "rows" | "text"; rows: P
 type ProductImageDraft = { key: string; src?: string; file?: File; preview: string };
 type Product = { id: string; name: string; deity: string; image: string; gallery?: string[]; placement?: string; accordions?: ProductAccordion[]; price: number; stock: number };
 type Order = { id: string; date: string; customer: string; item: string; total: number; status: string; fulfillmentStatus?: string; email?: string; phone?: string; address?: string; pincode?: string };
-type OrderDetail = Order & { items: { id: string; name: string; price: number; quantity: number }[] };
+type OrderDetail = Order & { items: { id: string; name: string; price: number; quantity: number }[]; rawStatus: string; trackingNote: string; cancelReason: string; cancelledAt: string | null; refundAmount: number | null; refundReason: string; refundReference: string; refundedAt: string | null };
 type AdminMetrics = { todayRevenue: number; monthRevenue: number; totalOrders: number; paidOrders: number; averageOrderValue: number; lowStockProducts: number; outOfStockProducts: number; lowStockThreshold: number; fulfillmentNeeded: number; paymentRecovery: number; paymentMode: "test" | "live" | "unconfigured" };
 type OrderFilter = "all" | "pending_payment" | "processing" | "on_hold" | "dispatched" | "completed" | "cancelled" | "refunded";
 type OrderStatusCounts = Record<OrderFilter, number>;
@@ -246,7 +246,7 @@ export default function Dashboard() {
   </> : <div className="page-heading"><div><p className="overline">WORKSPACE</p><h1>{section}</h1><p className="muted">This workspace is planned and will be added in a later dashboard feature.</p></div><StatusChip tone="neutral">Planned</StatusChip></div>;
 
   const filteredSections = sections.filter(item => item.toLowerCase().includes(commandQuery.toLowerCase()));
-  return <div className="app-shell"><aside className="sidebar"><a className="brand" href="#"><span className="brand-mark">k.</span><span>kalacar<small>OWNER SPACE</small></span></a><p className="nav-label">WORKSPACE</p><nav>{sections.map((item, i) => <button key={item} className={section === item ? "nav-item selected" : "nav-item"} onClick={() => { setSection(item); setMessage(""); }}><span className="nav-icon">{["⌂", "▤", "◇", "♙", "%", "⚙"][i]}</span>{item}{item === "Orders" && pendingCount > 0 && <b className="nav-count">{pendingCount}</b>}</button>)}</nav><div className="sidebar-bottom"><div className="owner-avatar">S</div><div className="owner-copy"><b>Shop owner</b><small>Local preview</small></div><button className="signout" title="Sign out" aria-label="Sign out" onClick={() => void signOut()}>↪</button></div></aside>
+  return <div className="app-shell"><aside className="sidebar"><a className="brand" href="#"><span className="brand-mark">k.</span><span>kalacar<small>OWNER SPACE</small></span></a><p className="nav-label">WORKSPACE</p><nav>{sections.map((item, i) => <button key={item} className={section === item ? "nav-item selected" : "nav-item"} onClick={() => { setSection(item); setMessage(""); }}><span className="nav-icon">{["⌂", "▤", "◇", "♙", "%", "⚙"][i]}</span>{item}{item === "Orders" && pendingCount > 0 && <b className="nav-count">{pendingCount}</b>}</button>)}</nav><div className="sidebar-bottom"><div className="owner-avatar">{(owner?.name ?? "S").charAt(0).toUpperCase()}</div><div className="owner-copy"><b>{owner?.name ?? "Shop owner"}</b><small>{owner?.email ?? ""}</small></div><button className="signout" title="Sign out" aria-label="Sign out" onClick={() => void signOut()}>↪</button></div></aside>
     <main className="main-content"><div className="mobile-brand"><span className="brand-mark">k.</span><span>kalacar <small>OWNER SPACE</small></span><button className="signout" onClick={() => void signOut()}>↪</button></div><div className="content-wrap"><header className="admin-bar"><button className="command-trigger" onClick={() => { setCommandOpen(true); setCommandQuery(""); }}><span>⌕</span> Search dashboard <kbd>⌘K</kbd></button><div className="admin-bar-actions"><span className="visibility-pill" title="A functional store visibility setting is planned for Store Settings"><i /> Visibility <strong>Planned</strong></span><button className="profile-trigger" onClick={() => setProfileOpen(!profileOpen)} aria-expanded={profileOpen}><span className="owner-avatar">{(owner?.name ?? "S").charAt(0).toUpperCase()}</span><span>{owner?.name ?? "Shop owner"}</span><b>⌄</b></button>{profileOpen && <div className="profile-menu"><strong>{owner?.name ?? "Shop owner"}</strong><small>{owner?.email}</small><button onClick={() => void signOut()}>Sign out</button></div>}</div></header><nav className="mobile-section-nav" aria-label="Dashboard sections">{sections.map((item, i) => <button key={item} className={section === item ? "selected" : ""} aria-current={section === item ? "page" : undefined} onClick={() => setSection(item)}><span>{["⌂", "▤", "◇", "♙", "%", "⚙"][i]}</span>{item}{item === "Orders" && pendingCount > 0 && <b>{pendingCount}</b>}</button>)}</nav>{bannerVisible && <aside className="announcement"><span><b>Setup in progress</b><span> Dashboard tools are being added in stages. Store visibility settings are planned.</span></span><button aria-label="Dismiss setup notice" onClick={() => { window.sessionStorage.setItem("kalacar-dashboard-banner-dismissed", "yes"); setBannerVisible(false); }}>×</button></aside>}{apiError && <div className="warning" role="status">{apiError}</div>}{content}{message && <div className="toast" role="status">{message}</div>}<footer>Kalacar owner dashboard <span>·</span> local development preview</footer></div></main>
     <ModalDrawer open={commandOpen} title="Go to" onClose={() => setCommandOpen(false)}><FormField label="Search sections"><input autoFocus value={commandQuery} onChange={event => setCommandQuery(event.target.value)} placeholder="Type a section name…" /></FormField><div className="command-results">{filteredSections.map(item => <button key={item} onClick={() => { setSection(item); setCommandOpen(false); }}>{item}<span>↵</span></button>)}{filteredSections.length === 0 && <p>No matching sections.</p>}</div></ModalDrawer>
   </div>;
@@ -414,6 +414,8 @@ function ProductPreviewAccordionContent({ content, format }: { content: string; 
   const isTable = format !== "text" && rows.length > 0 && rows.every((row): row is { label: string; value: string } => row !== null);
   return isTable ? <dl className="product-preview-specs">{rows.map((row, index) => <div key={`${row.label}-${index}`}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl> : <p>{content}</p>;
 }
+const statusTone = (status: string): "success" | "warning" | "danger" | "neutral" =>
+  status === "Paid" ? "success" : ["Refunded", "Cancelled"].includes(status) ? "neutral" : ["Paid after cancel", "Payment failed", "Payment setup failed"].includes(status) ? "danger" : "warning";
 function Orders({ orders, loading, error, filter, counts, onFilter, paymentMode, savingOrder, onUpdate }: { orders: Order[]; loading: boolean; error: string; filter: OrderFilter; counts: OrderStatusCounts | null; onFilter: (filter: OrderFilter) => void; paymentMode: AdminMetrics["paymentMode"]; savingOrder: string; onUpdate: (id: string, status: string) => void }) {
   const [detailOrderId, setDetailOrderId] = useState("");
   const [detail, setDetail] = useState<OrderDetail | null>(null);
@@ -430,6 +432,14 @@ function Orders({ orders, loading, error, filter, counts, onFilter, paymentMode,
     } catch (cause) { setDetailError(cause instanceof Error ? cause.message : "Order details are temporarily unavailable."); }
     finally { setDetailLoading(false); }
   }
+  /** Re-reads the open order without clearing the drawer, so confirmation messages stay visible. */
+  async function refreshDetails(id: string) {
+    try {
+      const response = await fetch(`/api/admin/orders/${encodeURIComponent(id)}`, { cache: "no-store" });
+      const data = await response.json() as { order?: OrderDetail; error?: string };
+      if (response.ok && data.order) setDetail(data.order);
+    } catch { /* keep showing the last loaded details */ }
+  }
   async function copyAddress() {
     if (!detail) return;
     const address = [detail.customer, detail.phone, detail.address, detail.pincode].filter(Boolean).join("\n");
@@ -441,14 +451,84 @@ function Orders({ orders, loading, error, filter, counts, onFilter, paymentMode,
     {paymentMode === "test" && <p className="test-mode-warning" role="note">Razorpay test mode · These orders are test activity, not live sales.</p>}
     {paymentMode === "unconfigured" && <p className="test-mode-warning" role="note">Payment mode is not configured · Do not treat these orders as live sales.</p>}
     <section className="panel order-filters" role="group" aria-label="Filter orders by status">{orderFilters.map(item => <button type="button" key={item.key} className={filter === item.key ? "order-filter selected" : "order-filter"} aria-pressed={filter === item.key} onClick={() => onFilter(item.key)}>{item.label}<span>{counts?.[item.key] ?? "—"}</span></button>)}</section>
-    <section className="panel">{error ? <p className="empty-orders" role="alert">{error}</p> : loading ? <p className="empty-orders">Loading orders…</p> : orders.length ? <><p className="muted order-limit-note">Showing {orders.length} most recent of {total} matching orders.</p><DataTable columns={[{ key: "customer", label: "Customer", render: o => <div className="table-customer"><b>{o.customer}</b><small>{o.item}</small></div> }, { key: "order", label: "Order", render: o => <span>{o.id.length > 12 ? o.id.slice(0, 8) : o.id}</span> }, { key: "status", label: "Status", render: o => <StatusChip tone={o.status.toLowerCase() === "paid" ? "success" : "warning"}>{o.status}</StatusChip> }, { key: "total", label: "Total", render: o => <b>₹{o.total}</b> }, { key: "actions", label: "Actions", render: o => { const fulfillment = o.fulfillmentStatus || "unfulfilled"; const next = ({ unfulfilled: ["processing", "Prepare"], processing: ["dispatched", "Dispatch"], dispatched: ["completed", "Complete"] } as Record<string, [string, string]>)[fulfillment]; return <div className="order-actions"><button className="text-button" type="button" onClick={() => void openDetails(o.id)}>View details</button>{o.status === "Paid" && next ? <button className="fulfillment-button" type="button" disabled={savingOrder === o.id} onClick={() => onUpdate(o.id, next[0])}>{savingOrder === o.id ? "Saving…" : next[1]}</button> : <span className="table-muted">{fulfillment.replaceAll("_", " ")}</span>}</div>; } }]} rows={orders} rowKey={o => o.id} /></> : <p className="empty-orders">{filter === "all" ? "No orders have been recorded." : `No ${orderFilters.find(item => item.key === filter)?.label.toLowerCase()} orders.`}</p>}</section>
+    <section className="panel">{error ? <p className="empty-orders" role="alert">{error}</p> : loading ? <p className="empty-orders">Loading orders…</p> : orders.length ? <><p className="muted order-limit-note">Showing {orders.length} most recent of {total} matching orders.</p><DataTable columns={[{ key: "customer", label: "Customer", render: o => <div className="table-customer"><b>{o.customer}</b><small>{o.item}</small></div> }, { key: "order", label: "Order", render: o => <span>{o.id.length > 12 ? o.id.slice(0, 8) : o.id}</span> }, { key: "status", label: "Status", render: o => <StatusChip tone={statusTone(o.status)}>{o.status}</StatusChip> }, { key: "total", label: "Total", render: o => <b>₹{o.total}</b> }, { key: "actions", label: "Actions", render: o => { const fulfillment = o.fulfillmentStatus || "unfulfilled"; const next = ({ unfulfilled: ["processing", "Prepare"], processing: ["dispatched", "Dispatch"], dispatched: ["completed", "Complete"] } as Record<string, [string, string]>)[fulfillment]; return <div className="order-actions"><button className="text-button" type="button" onClick={() => void openDetails(o.id)}>View details</button>{o.status === "Paid" && next ? <button className="fulfillment-button" type="button" disabled={savingOrder === o.id} onClick={() => onUpdate(o.id, next[0])}>{savingOrder === o.id ? "Saving…" : next[1]}</button> : <span className="table-muted">{fulfillment.replaceAll("_", " ")}</span>}</div>; } }]} rows={orders} rowKey={o => o.id} /></> : <p className="empty-orders">{filter === "all" ? "No orders have been recorded." : `No ${orderFilters.find(item => item.key === filter)?.label.toLowerCase()} orders.`}</p>}</section>
     <ModalDrawer open={Boolean(detailOrderId)} title={detail ? `Order ${detail.id.slice(0, 8)}` : "Order details"} onClose={() => { setDetailOrderId(""); setDetail(null); setDetailError(""); }}><div className="order-detail-content">{detailLoading ? <p role="status">Loading saved order details…</p> : detailError && !detail ? <p role="alert" className="order-detail-error">{detailError}</p> : detail ? <>
-      <div className="order-detail-summary"><div><span>Customer</span><b>{detail.customer}</b></div><div><span>Order status</span><StatusChip tone={detail.status.toLowerCase() === "paid" ? "success" : "warning"}>{detail.status}</StatusChip></div><div><span>Email</span><a href={`mailto:${detail.email}`}>{detail.email}</a></div><div><span>Phone</span><a href={`tel:${detail.phone}`}>{detail.phone}</a></div></div>
+      <div className="order-detail-summary"><div><span>Customer</span><b>{detail.customer}</b></div><div><span>Order status</span><StatusChip tone={statusTone(detail.status)}>{detail.status}</StatusChip></div><div><span>Email</span><a href={`mailto:${detail.email}`}>{detail.email}</a></div><div><span>Phone</span><a href={`tel:${detail.phone}`}>{detail.phone}</a></div></div>
       <section className="order-detail-section"><h3>Items</h3>{detail.items.length ? <div className="order-detail-items">{detail.items.map((item, index) => <div className="order-detail-item" key={`${item.id}-${index}`}><span>{item.name}<small>{item.quantity} × ₹{item.price}</small></span><b>₹{item.quantity * item.price}</b></div>)}</div> : <p>No item rows were saved for this order.</p>}<div className="order-detail-total"><span>Order total</span><b>₹{detail.total}</b></div></section>
       <section className="order-detail-section"><div className="order-detail-heading"><h3>Delivery address</h3><button className="secondary" type="button" onClick={() => void copyAddress()}>{addressCopied ? "Copied" : "Copy address"}</button></div><address>{detail.customer}{detail.phone && <><br />{detail.phone}</>}{detail.address && <><br />{detail.address}</>}{detail.pincode && <><br />PIN {detail.pincode}</>}</address></section>
+      <OrderActions key={detail.id} order={detail} onChanged={() => void refreshDetails(detail.id)} />
       <section className="order-detail-section"><h3>Customer note</h3><p>No customer note was provided with this order.</p></section>
       {detailError && <p role="alert" className="order-detail-error">{detailError}</p>}
     </> : null}</div></ModalDrawer>
   </>;
 }
+const shortDate = (value: string | null) => value ? new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value)) : "";
+
+/** Owner controls for one order: cancel unpaid, record a refund, tracking note. Never marks an order paid. */
+function OrderActions({ order, onChanged }: { order: OrderDetail; onChanged: () => void }) {
+  const [mode, setMode] = useState<"" | "cancel" | "refund">("");
+  const [reason, setReason] = useState("");
+  const [amount, setAmount] = useState(String(order.total));
+  const [reference, setReference] = useState("");
+  const [restock, setRestock] = useState(true);
+  const [tracking, setTracking] = useState(order.trackingNote);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState("");
+  const unpaid = ["payment_pending", "payment_failed", "payment_setup_failed"].includes(order.rawStatus);
+  const refundable = ["paid", "paid_after_cancel"].includes(order.rawStatus);
+  const shipped = ["dispatched", "completed"].includes(order.fulfillmentStatus ?? "");
+  const canRestock = order.rawStatus === "paid" && !shipped;
+
+  async function send(body: Record<string, unknown>, done: string) {
+    setBusy(true); setError(""); setSaved("");
+    try {
+      const response = await fetch(`/api/admin/orders/${encodeURIComponent(order.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const data = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(data.error || "Could not update this order.");
+      setSaved(done); setMode(""); onChanged();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not update this order."); }
+    finally { setBusy(false); }
+  }
+
+  if (order.rawStatus === "refunded") return <section className="order-detail-section order-manage"><h3>Refund recorded</h3>
+    <dl className="order-facts"><div><dt>Amount</dt><dd>₹{order.refundAmount}{order.refundAmount !== null && order.refundAmount < order.total ? ` of ₹${order.total} (partial)` : ""}</dd></div><div><dt>Reason</dt><dd>{order.refundReason}</dd></div>{order.refundReference && <div><dt>Razorpay refund ID</dt><dd>{order.refundReference}</dd></div>}{order.refundedAt && <div><dt>Recorded</dt><dd>{shortDate(order.refundedAt)}</dd></div>}</dl></section>;
+  if (order.rawStatus === "cancelled" || order.rawStatus === "payment_cancelled") return <section className="order-detail-section order-manage"><h3>Order cancelled</h3>
+    <dl className="order-facts">{order.cancelReason && <div><dt>Reason</dt><dd>{order.cancelReason}</dd></div>}{order.cancelledAt && <div><dt>Cancelled</dt><dd>{shortDate(order.cancelledAt)}</dd></div>}<div><dt>Stock</dt><dd>Reserved items were returned to stock.</dd></div></dl></section>;
+
+  return <section className="order-detail-section order-manage">
+    <h3>Manage order</h3>
+    {order.rawStatus === "paid_after_cancel" && <p className="order-alert" role="alert">Payment arrived after this order was cancelled, and its stock was already released. Refund the customer in your Razorpay dashboard, then record it here.</p>}
+    {saved && <p className="order-saved" role="status">{saved}</p>}
+    {error && <p className="order-detail-error" role="alert">{error}</p>}
+
+    {order.rawStatus === "paid" && <form className="order-form" onSubmit={event => { event.preventDefault(); void send({ action: "tracking", note: tracking }, tracking.trim() ? "Tracking note saved. The customer can see it on their order." : "Tracking note removed."); }}>
+      <FormField label="Tracking note for the customer"><input maxLength={300} placeholder="e.g. India Post · EE123456789IN" value={tracking} onChange={event => setTracking(event.target.value)} /></FormField>
+      <button className="secondary" type="submit" disabled={busy || tracking === order.trackingNote}>{busy ? "Saving…" : "Save tracking note"}</button>
+    </form>}
+
+    {mode === "" && <div className="order-manage-buttons">
+      {unpaid && <button className="secondary danger" type="button" onClick={() => { setMode("cancel"); setReason(""); }}>Cancel order</button>}
+      {refundable && <button className="secondary" type="button" onClick={() => { setMode("refund"); setAmount(String(order.total)); setReason(""); setReference(""); setRestock(canRestock); }}>Record a refund</button>}
+    </div>}
+
+    {mode === "cancel" && <form className="order-form" onSubmit={event => { event.preventDefault(); void send({ action: "cancel", reason }, "Order cancelled. Its items are back in stock."); }}>
+      <p className="order-form-note">This order isn’t paid. Cancelling returns its items to stock and stops the customer from paying for it.</p>
+      <FormField label="Reason (optional)"><input maxLength={300} value={reason} onChange={event => setReason(event.target.value)} placeholder="e.g. Customer asked to cancel" /></FormField>
+      <div className="order-form-actions"><button className="primary danger" type="submit" disabled={busy}>{busy ? "Cancelling…" : "Yes, cancel order"}</button><button className="text-button" type="button" disabled={busy} onClick={() => setMode("")}>Keep order</button></div>
+    </form>}
+
+    {mode === "refund" && <form className="order-form" onSubmit={event => { event.preventDefault(); void send({ action: "refund", amount: Number(amount), reason, reference, restock: canRestock && restock }, "Refund recorded."); }}>
+      <p className="order-form-note">Issue the refund in your Razorpay dashboard first. This records it here; it doesn’t move money.</p>
+      <div className="order-form-row">
+        <FormField label={`Amount (₹, up to ${order.total})`}><input required type="number" inputMode="numeric" min={1} max={order.total} step={1} value={amount} onChange={event => setAmount(event.target.value)} /></FormField>
+        <FormField label="Razorpay refund ID (optional)"><input maxLength={64} value={reference} onChange={event => setReference(event.target.value)} placeholder="rfnd_…" /></FormField>
+      </div>
+      <FormField label="Reason"><input required maxLength={300} value={reason} onChange={event => setReason(event.target.value)} placeholder="e.g. Arrived damaged" /></FormField>
+      <label className="order-check"><input type="checkbox" checked={canRestock && restock} disabled={!canRestock} onChange={event => setRestock(event.target.checked)} />Put the items back in stock{!canRestock && <small>{shipped ? " — already dispatched; adjust stock in Products if they come back" : " — stock was already released"}</small>}</label>
+      <div className="order-form-actions"><button className="primary" type="submit" disabled={busy || !reason.trim()}>{busy ? "Recording…" : "Record refund"}</button><button className="text-button" type="button" disabled={busy} onClick={() => setMode("")}>Back</button></div>
+    </form>}
+  </section>;
+}
+
 function OrderTable({ orders }: { orders: Order[] }) { return <div className="orders-list">{orders.map(o => { const date = String(o.date); const dateLabel = date.includes("T") ? date.replace("T", " ").slice(0, 16) : date; return <article className="order-row" key={o.id}><div className="order-symbol">⌑</div><div className="order-main"><b>{o.customer}</b><small>{o.item}</small>{o.phone && <small>{o.phone} · {o.address}, {o.pincode}</small>}</div><div className="order-meta"><small>{o.id.length > 12 ? o.id.slice(0, 8) : o.id} · {dateLabel}</small><span className={`status ${o.status.toLowerCase().replaceAll(" ", "-")}`}>{o.status}</span></div><b className="order-total">₹{o.total}</b></article>; })}</div>; }
