@@ -168,3 +168,9 @@
 .fact-actions{display:flex;gap:4px;padding-bottom:6px}
 .facts-editor>.secondary{justify-self:start}
 @media(max-width:680px){.fact-row{grid-template-columns:1fr}.fact-row input{height:44px;font-size:16px}.fact-actions{padding:0}}
+/* SVG icons */
+.nav-icon,.mobile-nav-icon{display:inline-grid;place-items:center}
+.metric-icon svg,.order-symbol svg{display:block}
+.command-trigger,.profile-trigger,.text-button,.signout,.announcement button,.inbox-clear{display:inline-flex;align-items:center;gap:6px}
+.signout{justify-content:center}
+.modal-drawer header button{display:grid;place-items:center}
