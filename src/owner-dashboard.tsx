@@ -204,10 +204,6 @@ export default function Dashboard() {
   }
 
 
-  // This mock gate intentionally works only in Vite's development server.
-  // Production remains locked until server-backed owner auth is implemented.
-  if (!import.meta.env.DEV) return <main className="locked"><span className="brand-mark">k.</span><h1>Owner access is not configured</h1><p>Real owner authentication must be enabled before this dashboard can be used outside local development.</p></main>;
-
   if (authState === "checking") return <main className="login-shell"><p className="muted">Checking your sign-in…</p></main>;
   if (!signedIn) return <main className="login-shell"><section className="login-card">
     <span className="brand-mark">k.</span><p className="overline">KALACAR · OWNER SPACE</p><h1>Welcome back</h1>
