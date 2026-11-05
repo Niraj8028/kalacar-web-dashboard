@@ -75,7 +75,6 @@ export default function Dashboard() {
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [apiError, setApiError] = useState("");
-  const [savingOrder, setSavingOrder] = useState("");
   const [openOrderId, setOpenOrderId] = useState("");
 
   async function refreshProducts() {
@@ -160,10 +159,11 @@ export default function Dashboard() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  async function updateOrder(id: string, fulfillmentStatus: string) {
-    setSavingOrder(id); setMessage("");
+  /** Saves a delivery status; returns an error message, or "" when saved. */
+  async function updateOrder(id: string, fulfillmentStatus: string, expected: string) {
+    setMessage("");
     try {
-      const response = await fetch(`/api/admin/orders/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fulfillmentStatus }) });
+      const response = await fetch(`/api/admin/orders/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fulfillmentStatus, expected }) });
       const data = await response.json() as { error?: string };
       if (!response.ok) throw new Error(data.error || "Could not update order.");
       const refreshed = await fetch(`/api/admin/orders?status=${orderFilter}`, { cache: "no-store" });
@@ -177,11 +177,10 @@ export default function Dashboard() {
         setMetrics(null); setMetricsError(error instanceof Error ? error.message : "Dashboard metrics are temporarily unavailable.");
       }
       setMessage("Order progress updated for the customer account.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not update order.");
-    } finally {
-      setSavingOrder("");
       window.setTimeout(() => setMessage(""), 4500);
+      return "";
+    } catch (error) {
+      return error instanceof Error ? error.message : "Could not update order.";
     }
   }
 
@@ -218,7 +217,7 @@ export default function Dashboard() {
 
   const todayLabel = new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long" }).format(new Date()).toUpperCase();
   const pendingCount = orderCounts?.pending_payment ?? 0;
-  const content = section === "Products" ? <Products products={products} drafts={productDrafts} setDrafts={setProductDrafts} onColourSaved={colourSaved} onProductCreated={refreshProducts} apiError={apiError} /> : section === "Orders" ? <Orders orders={orders} loading={ordersLoading} error={ordersError} filter={orderFilter} counts={orderCounts} onFilter={setOrderFilter} paymentMode={metrics?.paymentMode ?? "unconfigured"} savingOrder={savingOrder} onUpdate={updateOrder} openOrderId={openOrderId} onOrderOpened={() => setOpenOrderId("")} /> : section === "Coupons" ? <Coupons /> : section === "Customers" ? <Customers onOpenOrder={id => { setOrderFilter("all"); setOpenOrderId(id); setSection("Orders"); }} /> : section === "Overview" ? <>
+  const content = section === "Products" ? <Products products={products} drafts={productDrafts} setDrafts={setProductDrafts} onColourSaved={colourSaved} onProductCreated={refreshProducts} apiError={apiError} /> : section === "Orders" ? <Orders orders={orders} loading={ordersLoading} error={ordersError} filter={orderFilter} counts={orderCounts} onFilter={setOrderFilter} paymentMode={metrics?.paymentMode ?? "unconfigured"} onUpdate={updateOrder} openOrderId={openOrderId} onOrderOpened={() => setOpenOrderId("")} /> : section === "Coupons" ? <Coupons /> : section === "Customers" ? <Customers onOpenOrder={id => { setOrderFilter("all"); setOpenOrderId(id); setSection("Orders"); }} /> : section === "Overview" ? <>
     <div className="welcome-row"><div><p className="overline">{todayLabel}</p><h1>Good morning</h1><p className="muted">A clear view of your little shop.</p></div><span className="preview-pill"><i /> Local preview</span></div>
     {metrics?.paymentMode === "test" && <p className="test-mode-warning" role="note">Razorpay test mode · Orders and revenue shown here are test activity, not live sales.</p>}
     {metrics?.paymentMode === "unconfigured" && <p className="test-mode-warning" role="note">Payment mode is not configured · Do not treat these order totals as live sales.</p>}
@@ -601,7 +600,7 @@ function ProductPreviewAccordionContent({ content, format }: { content: string; 
 }
 const statusTone = (status: string): "success" | "warning" | "danger" | "neutral" =>
   status === "Paid" ? "success" : ["Refunded", "Cancelled"].includes(status) ? "neutral" : ["Paid after cancel", "Payment failed", "Payment setup failed"].includes(status) ? "danger" : "warning";
-function Orders({ orders, loading, error, filter, counts, onFilter, paymentMode, savingOrder, onUpdate, openOrderId = "", onOrderOpened }: { orders: Order[]; loading: boolean; error: string; filter: OrderFilter; counts: OrderStatusCounts | null; onFilter: (filter: OrderFilter) => void; paymentMode: AdminMetrics["paymentMode"]; savingOrder: string; onUpdate: (id: string, status: string) => void; openOrderId?: string; onOrderOpened?: () => void }) {
+function Orders({ orders, loading, error, filter, counts, onFilter, paymentMode, onUpdate, openOrderId = "", onOrderOpened }: { orders: Order[]; loading: boolean; error: string; filter: OrderFilter; counts: OrderStatusCounts | null; onFilter: (filter: OrderFilter) => void; paymentMode: AdminMetrics["paymentMode"]; onUpdate: (id: string, status: string, expected: string) => Promise<string>; openOrderId?: string; onOrderOpened?: () => void }) {
   const [detailOrderId, setDetailOrderId] = useState("");
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -643,21 +642,48 @@ function Orders({ orders, loading, error, filter, counts, onFilter, paymentMode,
     {paymentMode === "test" && <p className="test-mode-warning" role="note">Razorpay test mode · These orders are test activity, not live sales.</p>}
     {paymentMode === "unconfigured" && <p className="test-mode-warning" role="note">Payment mode is not configured · Do not treat these orders as live sales.</p>}
     <section className="panel order-filters" role="group" aria-label="Filter orders by status">{orderFilters.map(item => <button type="button" key={item.key} className={filter === item.key ? "order-filter selected" : "order-filter"} aria-pressed={filter === item.key} onClick={() => onFilter(item.key)}>{item.label}<span>{counts?.[item.key] ?? "—"}</span></button>)}</section>
-    <section className="panel">{error ? <p className="empty-orders" role="alert">{error}</p> : loading ? <p className="empty-orders">Loading orders…</p> : orders.length ? <><p className="muted order-limit-note">Showing {orders.length} most recent of {total} matching orders.</p><DataTable columns={[{ key: "customer", label: "Customer", render: o => <div className="table-customer"><b>{o.customer}</b><small>{o.item}</small></div> }, { key: "order", label: "Order", render: o => <span>{o.id.length > 12 ? o.id.slice(0, 8) : o.id}</span> }, { key: "status", label: "Status", render: o => <StatusChip tone={statusTone(o.status)}>{o.status}</StatusChip> }, { key: "total", label: "Total", render: o => <b>₹{o.total}</b> }, { key: "actions", label: "Actions", render: o => { const fulfillment = o.fulfillmentStatus || "unfulfilled"; const next = ({ unfulfilled: ["processing", "Prepare"], processing: ["dispatched", "Dispatch"], dispatched: ["completed", "Complete"] } as Record<string, [string, string]>)[fulfillment]; return <div className="order-actions"><button className="text-button" type="button" onClick={() => void openDetails(o.id)}>View details</button>{o.status === "Paid" && next ? <button className="fulfillment-button" type="button" disabled={savingOrder === o.id} onClick={() => onUpdate(o.id, next[0])}>{savingOrder === o.id ? "Saving…" : next[1]}</button> : <span className="table-muted">{fulfillment.replaceAll("_", " ")}</span>}</div>; } }]} rows={orders} rowKey={o => o.id} /></> : <p className="empty-orders">{filter === "all" ? "No orders have been recorded." : `No ${orderFilters.find(item => item.key === filter)?.label.toLowerCase()} orders.`}</p>}</section>
+    <section className="panel">{error ? <p className="empty-orders" role="alert">{error}</p> : loading ? <p className="empty-orders">Loading orders…</p> : orders.length ? <><p className="muted order-limit-note">Showing {orders.length} most recent of {total} matching orders.</p><DataTable columns={[{ key: "customer", label: "Customer", render: o => <div className="table-customer"><b>{o.customer}</b><small>{o.item}</small></div> }, { key: "order", label: "Order", render: o => <span>{o.id.length > 12 ? o.id.slice(0, 8) : o.id}</span> }, { key: "status", label: "Status", render: o => <StatusChip tone={statusTone(o.status)}>{o.status}</StatusChip> }, { key: "total", label: "Total", render: o => <b>₹{o.total}</b> }, { key: "actions", label: "Actions", render: o => <div className="order-actions"><button className="text-button" type="button" onClick={() => void openDetails(o.id)}>View details</button>{o.status === "Paid" ? <FulfillmentControl orderId={o.id} current={o.fulfillmentStatus || "unfulfilled"} onSave={onUpdate} /> : <span className="table-muted">{(o.fulfillmentStatus || "unfulfilled").replaceAll("_", " ")}</span>}</div> }]} rows={orders} rowKey={o => o.id} /></> : <p className="empty-orders">{filter === "all" ? "No orders have been recorded." : `No ${orderFilters.find(item => item.key === filter)?.label.toLowerCase()} orders.`}</p>}</section>
     <ModalDrawer open={Boolean(detailOrderId)} title={detail ? `Order ${detail.id.slice(0, 8)}` : "Order details"} onClose={() => { setDetailOrderId(""); setDetail(null); setDetailError(""); }}><div className="order-detail-content">{detailLoading ? <p role="status">Loading saved order details…</p> : detailError && !detail ? <p role="alert" className="order-detail-error">{detailError}</p> : detail ? <>
       <div className="order-detail-summary"><div><span>Customer</span><b>{detail.customer}</b></div><div><span>Order status</span><StatusChip tone={statusTone(detail.status)}>{detail.status}</StatusChip></div><div><span>Email</span><a href={`mailto:${detail.email}`}>{detail.email}</a></div><div><span>Phone</span><a href={`tel:${detail.phone}`}>{detail.phone}</a></div></div>
       <section className="order-detail-section"><h3>Items</h3>{detail.items.length ? <div className="order-detail-items">{detail.items.map((item, index) => <div className="order-detail-item" key={`${item.id}-${index}`}><span>{item.name}{item.variant && item.variant !== "Standard" && <em className="order-item-colour">{item.variant}</em>}<small>{item.quantity} × ₹{item.price}</small></span><b>₹{item.quantity * item.price}</b></div>)}{detail.giftWrap && <div className="order-detail-item gift-line"><span>Gift-ready packaging<small>Wrap this order as a gift</small></span><b>₹{detail.giftWrapPrice ?? 0}</b></div>}{detail.couponCode && (detail.discount ?? 0) > 0 && <div className="order-detail-item coupon-line"><span>Coupon {detail.couponCode}<small>Discount on murtis</small></span><b>−₹{detail.discount}</b></div>}</div> : <p>No item rows were saved for this order.</p>}<div className="order-detail-total"><span>Order total</span><b>₹{detail.total}</b></div></section>
       <section className="order-detail-section"><div className="order-detail-heading"><h3>Delivery address</h3><button className="secondary" type="button" onClick={() => void copyAddress()}>{addressCopied ? "Copied" : "Copy address"}</button></div><address>{detail.customer}{detail.phone && <><br />{detail.phone}</>}{detail.address && <><br />{detail.address}</>}{detail.pincode && <><br />PIN {detail.pincode}</>}</address></section>
-      <OrderActions key={detail.id} order={detail} onChanged={() => void refreshDetails(detail.id)} />
+      <OrderActions key={detail.id} order={detail} onChanged={() => void refreshDetails(detail.id)} onUpdateStatus={async (id, status, expected) => { const failed = await onUpdate(id, status, expected); if (!failed) await refreshDetails(id); return failed; }} />
       <section className="order-detail-section"><h3>Customer note</h3><p>No customer note was provided with this order.</p></section>
       {detailError && <p role="alert" className="order-detail-error">{detailError}</p>}
     </> : null}</div></ModalDrawer>
   </>;
 }
+const fulfillmentOptions = [["unfulfilled", "Not started"], ["processing", "Preparing"], ["dispatched", "Dispatched"], ["completed", "Completed"]] as const;
+const fulfillmentLabel = (value: string) => fulfillmentOptions.find(option => option[0] === value)?.[1] ?? value;
+
+/** Choosing a status changes nothing until Save, so a wrong click can't reach the customer. Live refreshes keep the unsaved choice. */
+function FulfillmentControl({ orderId, current, onSave }: { orderId: string; current: string; onSave: (id: string, status: string, expected: string) => Promise<string> }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const value = draft ?? current;
+  const changed = value !== current;
+  async function save() {
+    setSaving(true); setError("");
+    const failed = await onSave(orderId, value, current);
+    setSaving(false);
+    if (failed) setError(failed); else setDraft(null);
+  }
+  return <div className={`fulfillment-picker${changed ? " changed" : ""}`}>
+    <div className="fulfillment-row">
+      <select aria-label={`Delivery status for order ${orderId.slice(0, 8)}`} value={value} disabled={saving} onChange={event => { setDraft(event.target.value); setError(""); }}>{fulfillmentOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
+      <button className="fulfillment-button" type="button" disabled={!changed || saving} onClick={() => void save()}>{saving ? "Saving…" : "Save"}</button>
+      {changed && !saving && <button className="text-button" type="button" onClick={() => { setDraft(null); setError(""); }}>Undo</button>}
+    </div>
+    {changed && <small className="fulfillment-note">Not saved · was {fulfillmentLabel(current)}</small>}
+    {error && <small className="fulfillment-error" role="alert">{error}</small>}
+  </div>;
+}
+
 const shortDate = (value: string | null) => value ? new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value)) : "";
 
 /** Owner controls for one order: cancel unpaid, record a refund, tracking note. Never marks an order paid. */
-function OrderActions({ order, onChanged }: { order: OrderDetail; onChanged: () => void }) {
+function OrderActions({ order, onChanged, onUpdateStatus }: { order: OrderDetail; onChanged: () => void; onUpdateStatus: (id: string, status: string, expected: string) => Promise<string> }) {
   const [mode, setMode] = useState<"" | "cancel" | "refund">("");
   const [reason, setReason] = useState("");
   const [amount, setAmount] = useState(String(order.total));
@@ -694,6 +720,7 @@ function OrderActions({ order, onChanged }: { order: OrderDetail; onChanged: () 
     {saved && <p className="order-saved" role="status">{saved}</p>}
     {error && <p className="order-detail-error" role="alert">{error}</p>}
 
+    {order.rawStatus === "paid" && <div className="order-status-field"><span>Delivery status</span><FulfillmentControl orderId={order.id} current={order.fulfillmentStatus || "unfulfilled"} onSave={onUpdateStatus} /></div>}
     {order.rawStatus === "paid" && <form className="order-form" onSubmit={event => { event.preventDefault(); void send({ action: "tracking", note: tracking }, tracking.trim() ? "Tracking note saved. The customer can see it on their order." : "Tracking note removed."); }}>
       <FormField label="Tracking note for the customer"><input maxLength={300} placeholder="e.g. India Post · EE123456789IN" value={tracking} onChange={event => setTracking(event.target.value)} /></FormField>
       <button className="secondary" type="submit" disabled={busy || tracking === order.trackingNote}>{busy ? "Saving…" : "Save tracking note"}</button>
