@@ -92,17 +92,18 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
+    if (!signedIn) return;
     void refreshProducts();
     if (section === "Products") return;
     const timer = window.setInterval(() => void refreshProducts(), 2500);
     return () => window.clearInterval(timer);
-  }, [section]);
+  }, [section, signedIn]);
 
   useEffect(() => {
     const url = new URL(window.location.href);
     const reason = url.searchParams.get("auth_error");
     if (reason) {
-      setAuthError({ cancelled: "Google sign-in was cancelled.", expired: "Google sign-in expired. Please try again.", unverified: "That Google email isn’t verified.", not_owner: "That Google account isn’t listed as a shop owner, so it can’t open the dashboard. Your shop sign-in is unchanged." }[reason] ?? "Google sign-in failed. Please try again.");
+      setAuthError({ cancelled: "Google sign-in was cancelled.", expired: "Google sign-in expired. Please try again.", unverified: "That Google email isn’t verified.", not_owner: "That Google account isn’t listed as a shop owner, so it can’t open the dashboard. Your shop sign-in is unchanged.", unavailable: "Google confirmed your account, but the shop's database can't be reached, so sign-in couldn't finish.", google: "Google didn't accept the sign-in. Check the Google client ID and secret on the shop's server." }[reason] ?? "Google sign-in failed. Please try again.");
       url.searchParams.delete("auth_error");
       window.history.replaceState(null, "", url);
     }
