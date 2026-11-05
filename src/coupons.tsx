@@ -4,17 +4,17 @@ import { DataTable, ModalDrawer, StatusChip } from "./dashboard-ui";
 import { useLiveRefresh } from "./live";
 
 type CouponType = "percent" | "fixed";
-type CouponStatus = "active" | "scheduled" | "expired" | "used_up" | "off";
-type Coupon = { id: number; code: string; type: CouponType; amount: number; maxDiscount: number | null; minSpend: number; usageLimit: number | null; oncePerCustomer: boolean; startsOn: string | null; expiresOn: string | null; active: boolean; uses: number; paidUses: number; discountGiven: number; status: CouponStatus; description: string };
+type CouponStatus = "active" | "scheduled" | "expired" | "used_up" | "reserved" | "off";
+type Coupon = { id: number; code: string; type: CouponType; amount: number; maxDiscount: number | null; minSpend: number; usageLimit: number | null; oncePerCustomer: boolean; startsOn: string | null; expiresOn: string | null; active: boolean; used: number; reserved: number; discountGiven: number; status: CouponStatus; description: string };
 type Draft = { code: string; type: CouponType; amount: string; maxDiscount: string; minSpend: string; usageLimit: string; oncePerCustomer: boolean; startsOn: string; expiresOn: string; active: boolean };
 type Filter = "all" | "active" | "scheduled" | "ended" | "off";
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 const day = (d: string | null) => d ? new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${d}T00:00:00Z`)) : "";
-const statusInfo: Record<CouponStatus, [string, "success" | "warning" | "danger" | "neutral"]> = { active: ["Active", "success"], scheduled: ["Scheduled", "warning"], expired: ["Expired", "neutral"], used_up: ["Used up", "neutral"], off: ["Off", "neutral"] };
+const statusInfo: Record<CouponStatus, [string, "success" | "warning" | "danger" | "neutral"]> = { active: ["Active", "success"], scheduled: ["Scheduled", "warning"], expired: ["Expired", "neutral"], used_up: ["Used up", "neutral"], reserved: ["All reserved", "warning"], off: ["Off", "neutral"] };
 const filters: { key: Filter; label: string; match: (c: Coupon) => boolean }[] = [
   { key: "all", label: "All", match: () => true },
-  { key: "active", label: "Active", match: c => c.status === "active" },
+  { key: "active", label: "Active", match: c => c.status === "active" || c.status === "reserved" },
   { key: "scheduled", label: "Scheduled", match: c => c.status === "scheduled" },
   { key: "ended", label: "Expired or used up", match: c => c.status === "expired" || c.status === "used_up" },
   { key: "off", label: "Off", match: c => c.status === "off" },
@@ -68,7 +68,7 @@ export function Coupons() {
     {message && <p className="coupon-message" role="status">{message}</p>}
     <section className="panel">{error && !coupons ? <p className="empty-orders" role="alert">{error}</p> : !coupons ? <p className="empty-orders">Loading coupons…</p> : shown.length ? <DataTable rows={shown} rowKey={c => String(c.id)} columns={[
       { key: "code", label: "Code", render: c => <button type="button" className="coupon-code-cell" onClick={() => { setEditing(c); setMessage(""); }}><b>{c.code}</b><small>{c.description}</small></button> },
-      { key: "uses", label: "Used", render: c => <span title={`${c.paidUses} paid · ${money(c.discountGiven)} given`}>{c.uses}{c.usageLimit ? ` / ${c.usageLimit}` : ""}{c.oncePerCustomer && <small className="table-muted"> · 1 each</small>}</span> },
+      { key: "uses", label: "Used", render: c => <span title={`${money(c.discountGiven)} given. Reserved uses belong to unpaid orders and are only used if payment succeeds.`}>{c.used}{c.usageLimit ? ` / ${c.usageLimit}` : ""}{c.reserved > 0 && <small className="table-muted"> · {c.reserved} reserved</small>}{c.oncePerCustomer && <small className="table-muted"> · 1 each</small>}</span> },
       { key: "dates", label: "Dates", render: c => <span className="table-muted">{c.startsOn || c.expiresOn ? `${c.startsOn ? day(c.startsOn) : "Now"} – ${c.expiresOn ? day(c.expiresOn) : "no end"}` : "No end date"}</span> },
       { key: "given", label: "Discount given", render: c => <span>{money(c.discountGiven)}</span> },
       { key: "status", label: "Status", render: c => <StatusChip tone={statusInfo[c.status][1]}>{statusInfo[c.status][0]}</StatusChip> },
@@ -83,7 +83,7 @@ function CouponEditor({ coupon, onDone }: { coupon: Coupon | null; onDone: (mess
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const set = (patch: Partial<Draft>) => { setDraft(d => ({ ...d, ...patch })); setError(""); };
-  const used = (coupon?.uses ?? 0) > 0;
+  const used = (coupon?.used ?? 0) + (coupon?.reserved ?? 0) > 0;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true); setError("");
@@ -124,7 +124,7 @@ function CouponEditor({ coupon, onDone }: { coupon: Coupon | null; onDone: (mess
     <label className="toggle-row"><input type="checkbox" checked={draft.oncePerCustomer} onChange={e => set({ oncePerCustomer: e.target.checked })} /><span><b>Once per customer</b><small>Each account can use this coupon on one order.</small></span></label>
     <label className="toggle-row"><input type="checkbox" checked={draft.active} onChange={e => set({ active: e.target.checked })} /><span><b>Coupon is on</b><small>Switch off to stop new orders using it. Orders already placed keep their discount.</small></span></label>
     <p className="coupon-preview"><span className="overline">CUSTOMERS SEE</span>{preview(draft)}</p>
-    {coupon && <p className="field-hint">Used on {coupon.uses} {coupon.uses === 1 ? "order" : "orders"} so far ({coupon.paidUses} paid, {money(coupon.discountGiven)} given). A use returns if payment setup fails or the order is cancelled; refunds don't return it.</p>}
+    {coupon && <p className="field-hint">Used on {coupon.used} paid {coupon.used === 1 ? "order" : "orders"} ({money(coupon.discountGiven)} given){coupon.reserved > 0 ? `, and reserved by ${coupon.reserved} unpaid ${coupon.reserved === 1 ? "order" : "orders"}` : ""}. A use counts once payment succeeds. Cancelling an unpaid order releases its reservation; refunds don't return a use.</p>}
     {error && <p className="form-error" role="alert">{error}</p>}
     <div className="coupon-actions">
       {coupon && (used ? <small className="field-hint">Used coupons can't be deleted — switch it off instead.</small> : <button type="button" className="secondary danger" disabled={saving} onClick={() => void remove()}>Delete coupon</button>)}
