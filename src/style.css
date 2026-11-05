@@ -254,3 +254,6 @@ footer{margin-top:8px;font-size:12px;color:var(--muted)}
 .data-table td[data-label="Actions"] .fulfillment-picker{min-width:0}
 @media(min-width:1200px){.data-table td[data-label="Actions"] .fulfillment-picker{width:310px;flex-wrap:wrap}.data-table td[data-label="Actions"] .message-row{flex-wrap:nowrap}.data-table td[data-label="Actions"] .message-button{padding:0 9px}}
 @media(max-width:1199px){.order-actions{flex-wrap:wrap}.order-actions>.text-button{flex:1 1 100%;justify-content:flex-start;text-align:left;padding-left:0}}
+/* Products tab: search and stock filters */
+.product-tools{display:grid;gap:12px;margin-bottom:var(--gap-section);padding:12px var(--space-card)}.product-tools-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.product-tools-row .customer-search{flex:1 1 260px;height:38px}.product-tools-row .category-filter{margin:0}.product-stock-filters{display:flex;gap:8px;flex-wrap:wrap}.stock-row-levels{display:block;margin-top:4px}.product-no-match{display:grid;justify-items:start;gap:10px;padding:20px 2px;color:#77756c;font-size:13px}.product-no-match p{margin:0}
+@media(max-width:680px){.product-tools-row .customer-search{flex-basis:100%;height:44px}.product-tools-row .category-filter{width:100%}.product-stock-filters .order-filter{min-height:44px}}

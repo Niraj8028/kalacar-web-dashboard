@@ -309,6 +309,10 @@ function checkDraft(saved: { price: number; stock: number }, draft: ProductDraft
 
 const Chevron = ({ up = false }: { up?: boolean }) => <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d={up ? "M2.5 7.5 6 4l3.5 3.5" : "M2.5 4.5 6 8l3.5-3.5"} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 const stockLevel = (stock: number) => stock === 0 ? { tone: "out", label: "Out of stock" } : stock <= LOW_STOCK ? { tone: "low", label: `Low · ${stock} left` } : { tone: "ok", label: "In stock" };
+type StockFilter = "all" | "ok" | "low" | "out";
+const stockFilters: { key: StockFilter; label: string }[] = [{ key: "all", label: "All" }, { key: "ok", label: "In stock" }, { key: "low", label: "Low stock" }, { key: "out", label: "Out of stock" }];
+// Stock level of what customers can see. Hidden colours only count when every colour is hidden.
+const productStockLevels = (product: Product) => { const shown = product.variants.filter(colour => colour.active); return (shown.length ? shown : product.variants).map(colour => stockLevel(colour.stock).tone); };
 
 function Products({ products, drafts, setDrafts, onColourSaved, onProductCreated, apiError }: { products: Product[]; drafts: ProductDrafts; setDrafts: (update: (current: ProductDrafts) => ProductDrafts) => void; onColourSaved: (productId: string, colourId: string, values: { price: number; stock: number }) => void; onProductCreated: () => void; apiError: string }) {
   const [editorProduct, setEditorProduct] = useState<Product | null | undefined>(undefined);
@@ -319,7 +323,16 @@ function Products({ products, drafts, setDrafts, onColourSaved, onProductCreated
   const [categoryFilter, setCategoryFilter] = useState("");
   const categoryNames = [...new Set(products.map(product => product.deity))].sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
   const shownCategory = categoryNames.includes(categoryFilter) ? categoryFilter : "";
-  const sorted = products.filter(product => !shownCategory || product.deity === shownCategory).sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
+  const [productSearch, setProductSearch] = useState("");
+  const [stockFilter, setStockFilter] = useState<StockFilter>("all");
+  const searchText = productSearch.trim().toLowerCase();
+  const inCategoryAndSearch = products.filter(product => (!shownCategory || product.deity === shownCategory) && (!searchText || [product.name, product.deity, product.badge ?? "", ...product.variants.map(colour => colour.name)].some(text => text.toLowerCase().includes(searchText))));
+  const stockCount = (key: StockFilter) => key === "all" ? inCategoryAndSearch.length : inCategoryAndSearch.filter(product => productStockLevels(product).includes(key)).length;
+  // A row with unsaved changes or a fresh save message stays visible, whatever the filters say.
+  const keepVisible = (product: Product) => product.variants.some(colour => drafts[colour.id] || rowMessage?.id === colour.id);
+  const sorted = products.filter(product => keepVisible(product) || (inCategoryAndSearch.includes(product) && (stockFilter === "all" || productStockLevels(product).includes(stockFilter)))).sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
+  const filtersOn = Boolean(searchText || shownCategory || stockFilter !== "all");
+  const clearFilters = () => { setProductSearch(""); setCategoryFilter(""); setStockFilter("all"); };
   const colourName = (id: string) => { for (const p of products) { const c = p.variants.find(v => v.id === id); if (c) return p.variants.length > 1 ? `${p.name} (${c.name})` : p.name; } return ""; };
   const unsaved = Object.keys(drafts).filter(id => colourName(id));
 
@@ -389,16 +402,20 @@ function Products({ products, drafts, setDrafts, onColourSaved, onProductCreated
     <div className="page-heading"><div><p className="overline">YOUR CATALOGUE</p><h1>Products</h1><p className="muted">Change a price or stock, then save that product or colour on its own row.</p></div><div className="heading-actions"><button className="secondary" onClick={() => setEditorProduct(null)}>+ Add product</button></div></div>
     {unsaved.length > 0 && <p className="unsaved-banner" role="status"><b>{unsaved.length === 1 ? "1 item has" : `${unsaved.length} items have`} unsaved changes</b> — highlighted below. Save or undo each one; nothing is saved until you do.</p>}
     {editorProduct !== undefined && <ProductEditor key={editorProduct?.id ?? "new"} product={editorProduct} onCancel={() => setEditorProduct(undefined)} onSaved={async () => { await onProductCreated(); setEditorProduct(undefined); }} />}
-    {!apiError && categoryNames.length > 1 && <label className="category-filter">Category<select value={shownCategory} onChange={event => setCategoryFilter(event.target.value)}><option value="">All categories</option>{categoryNames.map(name => <option key={name} value={name}>{name}</option>)}</select></label>}
+    {!apiError && products.length > 0 && <section className="panel product-tools" aria-label="Find products">
+      <div className="product-tools-row"><label className="customer-search"><SearchIcon size={15} /><input type="search" value={productSearch} onChange={event => setProductSearch(event.target.value)} placeholder="Search name, category or colour" aria-label="Search products" /></label>{categoryNames.length > 1 && <label className="category-filter">Category<select value={shownCategory} onChange={event => setCategoryFilter(event.target.value)}><option value="">All categories</option>{categoryNames.map(name => <option key={name} value={name}>{name}</option>)}</select></label>}</div>
+      <div className="product-stock-filters" role="group" aria-label="Filter products by stock">{stockFilters.map(item => <button type="button" key={item.key} className={stockFilter === item.key ? "order-filter selected" : "order-filter"} aria-pressed={stockFilter === item.key} onClick={() => setStockFilter(item.key)}>{item.label}<span>{stockCount(item.key)}</span></button>)}</div>
+    </section>}
     <section className="panel">{apiError ? <p className="empty-orders" role="alert">{apiError}</p> : products.length ? <div className="stock-list">
       <div className="stock-list-head" aria-hidden="true"><span className="head-product">Product</span><span className="head-price">Price</span><span className="head-stock">Available</span></div>
+      {!sorted.length && <div className="product-no-match"><p>No products match these filters.</p>{filtersOn && <button className="secondary" type="button" onClick={clearFilters}>Clear filters</button>}</div>}
       {sorted.map(product => {
         const productDirty = product.variants.some(colour => drafts[colour.id]);
         const buttons = <div className="stock-row-buttons">
           <button className="secondary" type="button" onClick={() => setPreviewProduct(product)}>Preview</button>
           <button className="secondary" type="button" disabled={productDirty} title={productDirty ? "Save or undo the price/stock changes first" : undefined} onClick={() => setEditorProduct(product)}>Edit details</button>
         </div>;
-        const title = <div className="stock-name"><b>{product.name}{product.badge && <span className="product-badge">{product.badge}</span>}</b><small>{product.deity}{product.variants.length > 1 ? ` · ${product.variants.length} colours · ${product.variants.filter(v => v.active).reduce((sum, v) => sum + v.stock, 0)} in stock` : ""}</small></div>;
+        const title = <div className="stock-name"><b>{product.name}{product.badge && <span className="product-badge">{product.badge}</span>}</b><small>{product.deity}{product.variants.length > 1 ? ` · ${product.variants.length} colours · ${product.variants.filter(v => v.active).reduce((sum, v) => sum + v.stock, 0)} in stock` : ""}{product.variants.length === 1 && <span className="stock-row-levels"><span className={`level-chip ${stockLevel(product.variants[0].stock).tone}`}>{stockLevel(product.variants[0].stock).label}</span>{!product.variants[0].active && <span className="level-chip hidden">Hidden in shop</span>}</span>}</small></div>;
         if (product.variants.length <= 1) {
           const colour = product.variants[0];
           if (!colour) return null;
