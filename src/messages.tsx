@@ -6,11 +6,12 @@ export type MessageTemplate = { whatsapp: string; emailSubject: string; emailBod
 type Templates = Record<string, MessageTemplate>;
 type Variable = { key: string; label: string };
 export type MessageConfig = { templates: Templates; defaults: Templates; variables: Variable[] };
-export type MessageOrder = { id: string; customer: string; email?: string; phone?: string; item?: string; total: number; trackingNote?: string; items?: { name: string; variant?: string; quantity: number }[] };
+export type MessageOrder = { id: string; customer: string; email?: string; phone?: string; item?: string; total: number; trackingNote?: string; trackingCourier?: string; trackingId?: string; items?: { name: string; variant?: string; quantity: number }[] };
 
 const STATUSES = [["unfulfilled", "Not started"], ["processing", "Preparing"], ["dispatched", "Dispatched"], ["completed", "Completed"]] as const;
 const statusLabel = (status: string) => STATUSES.find(item => item[0] === status)?.[1] ?? status;
 const MAX_EMAIL_LINK = 2000;
+const COURIERS: Record<string, { label: string; url: string }> = { trackon: { label: "Trackon", url: "https://www.trackon.in/courier-tracking" }, india_post: { label: "India Post", url: "https://www.indiapost.gov.in/" } };
 
 async function loadConfig(): Promise<MessageConfig> {
   const response = await fetch("/api/admin/order-messages", { cache: "no-store" });
@@ -36,7 +37,7 @@ const productNames = (order: MessageOrder) => order.items?.length
 
 function orderValues(order: MessageOrder, status: string): Record<string, string> {
   const name = order.customer.trim();
-  return { customer_name: name, first_name: name.split(/\s+/)[0] ?? "", product_names: productNames(order), order_id: order.id.slice(0, 8).toUpperCase(), order_total: `₹${order.total.toLocaleString("en-IN")}`, status: statusLabel(status), tracking_note: order.trackingNote?.trim() ?? "", shop_name: "Kalacar" };
+  return { customer_name: name, first_name: name.split(/\s+/)[0] ?? "", product_names: productNames(order), order_id: order.id.slice(0, 8).toUpperCase(), order_total: `₹${order.total.toLocaleString("en-IN")}`, status: statusLabel(status), courier: COURIERS[order.trackingCourier ?? ""]?.label ?? "", tracking_id: order.trackingId ?? "", tracking_link: COURIERS[order.trackingCourier ?? ""]?.url ?? "", tracking_note: order.trackingNote?.trim() ?? "", shop_name: "Kalacar" };
 }
 
 /** Fills a template in one pass, so a customer's own text can't be read as a variable. */
@@ -108,7 +109,7 @@ const FIELDS: { key: FieldKey; label: string; rows: number; max: number }[] = [
   { key: "emailSubject", label: "Email subject", rows: 0, max: 150 },
   { key: "emailBody", label: "Email message", rows: 7, max: 1500 },
 ];
-const SAMPLE: MessageOrder = { id: "ab12cd34", customer: "Customer Name", item: "Sample murti · 1", total: 1199, trackingNote: "Courier · TRACKING-ID" };
+const SAMPLE: MessageOrder = { id: "ab12cd34", customer: "Customer Name", item: "Sample murti · 1", total: 1199, trackingNote: "Handed over today", trackingCourier: "trackon", trackingId: "TRACKING-ID" };
 
 function TemplateEditor({ status, saved, defaults, variables, hidden, onSaved, onDirty }: { status: string; saved: MessageTemplate; defaults: MessageTemplate; variables: Variable[]; hidden: boolean; onSaved: (template: MessageTemplate) => void; onDirty: (dirty: boolean) => void }) {
   const [draft, setDraft] = useState(saved);
