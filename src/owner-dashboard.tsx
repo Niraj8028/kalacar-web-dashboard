@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { DataTable, FormField, ModalDrawer, StatusChip } from "./dashboard-ui";
 import { Customers } from "./customers";
+import { CategoriesPanel, loadCategories } from "./categories";
+import type { Category } from "./categories";
 import { Coupons } from "./coupons";
 import { useLiveRefresh } from "./live";
 import { AlertIcon, ArrowRight, CheckIcon, ChevronDown, CloseIcon, EnterIcon, OrdersIcon, PackageIcon, RupeeIcon, SearchIcon, SignOutIcon, TrendIcon, sectionIcons } from "./icons";
@@ -279,7 +281,10 @@ function Products({ products, drafts, setDrafts, onColourSaved, onProductCreated
   const [savingId, setSavingId] = useState("");
   const [rowMessage, setRowMessage] = useState<{ id: string; text: string; error?: boolean } | null>(null);
   // Stable alphabetical order: rows don't jump around after one is saved.
-  const sorted = [...products].sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const categoryNames = [...new Set(products.map(product => product.deity))].sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
+  const shownCategory = categoryNames.includes(categoryFilter) ? categoryFilter : "";
+  const sorted = products.filter(product => !shownCategory || product.deity === shownCategory).sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
   const colourName = (id: string) => { for (const p of products) { const c = p.variants.find(v => v.id === id); if (c) return p.variants.length > 1 ? `${p.name} (${c.name})` : p.name; } return ""; };
   const unsaved = Object.keys(drafts).filter(id => colourName(id));
 
@@ -349,6 +354,7 @@ function Products({ products, drafts, setDrafts, onColourSaved, onProductCreated
     <div className="page-heading"><div><p className="overline">YOUR CATALOGUE</p><h1>Products</h1><p className="muted">Change a price or stock, then save that product or colour on its own row.</p></div><div className="heading-actions"><button className="secondary" onClick={() => setEditorProduct(null)}>+ Add product</button></div></div>
     {unsaved.length > 0 && <p className="unsaved-banner" role="status"><b>{unsaved.length === 1 ? "1 item has" : `${unsaved.length} items have`} unsaved changes</b> — highlighted below. Save or undo each one; nothing is saved until you do.</p>}
     {editorProduct !== undefined && <ProductEditor key={editorProduct?.id ?? "new"} product={editorProduct} onCancel={() => setEditorProduct(undefined)} onSaved={async () => { await onProductCreated(); setEditorProduct(undefined); }} />}
+    {!apiError && categoryNames.length > 1 && <label className="category-filter">Category<select value={shownCategory} onChange={event => setCategoryFilter(event.target.value)}><option value="">All categories</option>{categoryNames.map(name => <option key={name} value={name}>{name}</option>)}</select></label>}
     <section className="panel">{apiError ? <p className="empty-orders" role="alert">{apiError}</p> : products.length ? <div className="stock-list">
       <div className="stock-list-head" aria-hidden="true"><span className="head-product">Product</span><span className="head-price">Price</span><span className="head-stock">Available</span></div>
       {sorted.map(product => {
@@ -431,6 +437,13 @@ function ColourEditor({ colour, index, count, onChange, onMove, onRemove, regist
 function ProductEditor({ product, onCancel, onSaved }: { product: Product | null; onCancel: () => void; onSaved: () => Promise<void> }) {
   const [name, setName] = useState(product?.name ?? "");
   const [deity, setDeity] = useState(product?.deity ?? "");
+  const [categories, setCategories] = useState<Category[] | null>(null);
+  const [categoriesError, setCategoriesError] = useState("");
+  useEffect(() => {
+    let active = true;
+    loadCategories().then(list => { if (active) setCategories(list); }).catch(cause => { if (active) setCategoriesError(cause instanceof Error ? cause.message : "Categories are unavailable right now."); });
+    return () => { active = false; };
+  }, []);
   const [badge, setBadge] = useState(product?.badge ?? "");
   const [tagline, setTagline] = useState(product?.tagline ?? "");
   const [placement, setPlacement] = useState(product?.placement ?? "");
@@ -524,7 +537,7 @@ function ProductEditor({ product, onCancel, onSaved }: { product: Product | null
     <div className="panel-head"><div><p className="overline">{product ? "EDIT CATALOGUE ITEM" : "NEW CATALOGUE ITEM"}</p><h2>{product ? `Edit ${product.name}` : "Add a product"}</h2></div><button className="secondary" type="button" onClick={onCancel}>Close</button></div>
     <div className="form-grid">
       <label>Product name<input required minLength={2} maxLength={160} value={name} onChange={e => setName(e.target.value)} /></label>
-      <label>Deity<input required minLength={2} maxLength={80} value={deity} onChange={e => setDeity(e.target.value)} /></label>
+      <label>Category<select required value={deity} disabled={!categories?.length} onChange={e => setDeity(e.target.value)}><option value="" disabled>{categories ? categories.length ? "Choose a category" : "No categories yet" : "Loading categories…"}</option>{categories?.map(category => <option key={category.id} value={category.name}>{category.name}</option>)}</select>{categoriesError ? <small className="fulfillment-error" role="alert">{categoriesError}</small> : <small className="field-hint">Add or rename categories in Settings.</small>}</label>
       <label>Badge (optional)<input maxLength={40} placeholder="e.g. Flagship, New, Festive" value={badge} onChange={e => setBadge(e.target.value)} /><small className="field-hint">Small label on the product photo and card.</small></label>
       <label>Tagline (optional)<input maxLength={120} placeholder="A short line under the name" value={tagline} onChange={e => setTagline(e.target.value)} /></label>
       <label className="form-grid-wide">Short description / placement (optional)<textarea maxLength={255} value={placement} onChange={e => setPlacement(e.target.value)} /></label>
@@ -785,6 +798,7 @@ function StoreSettings() {
   }
   return <>
     <div className="page-heading"><div><p className="overline">STORE</p><h1>Settings</h1><p className="muted">Offers and options you can change any time — no code needed.</p></div></div>
+    <CategoriesPanel />
     <section className={`panel settings-card${dirty ? " dirty" : ""}`} aria-labelledby="gift-title">
       <div className="panel-head"><div><p className="overline">CART ADD-ON</p><h2 id="gift-title">Gift-ready packaging</h2></div>{saved && <StatusChip tone={saved.enabled ? "success" : "neutral"}>{saved.enabled ? "On in shop" : "Off"}</StatusChip>}</div>
       {error && <p className="order-detail-error" role="alert">{error}</p>}
