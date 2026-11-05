@@ -194,3 +194,4 @@
 @media(max-width:680px){.data-table td[data-label="Actions"]{display:block}.data-table td[data-label="Actions"]::before{display:block;margin-bottom:8px}.fulfillment-row,.message-row{width:100%}}
 
 .visibility-options{display:grid;gap:8px}.visibility-banner-preview{margin:8px 0 0;padding:9px 12px;border-radius:6px;background:#642b22;color:#fff;font-size:13px;overflow-wrap:anywhere}button.visibility-pill{font:inherit;cursor:pointer}
+button.visibility-pill{font-size:11px;font-weight:500;color:inherit;background:#fff}

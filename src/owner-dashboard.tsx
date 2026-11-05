@@ -26,6 +26,14 @@ type OrderFilter = "all" | "pending_payment" | "processing" | "on_hold" | "dispa
 type OrderStatusCounts = Record<OrderFilter, number>;
 type Section = "Overview" | "Orders" | "Products" | "Customers" | "Coupons" | "Settings";
 const sections: Section[] = ["Overview", "Orders", "Products", "Customers", "Coupons", "Settings"];
+const sectionPaths: Record<Section, string> = { Overview: "/", Orders: "/orders", Products: "/products", Customers: "/customers", Coupons: "/coupons", Settings: "/settings" };
+type Route = { section: Section; orderId: string };
+const routePath = ({ section, orderId }: Route) => orderId ? `${sectionPaths.Orders}/${orderId}` : sectionPaths[section];
+function readRoute(): Route {
+  const [first = "", second = ""] = window.location.pathname.split("/").filter(Boolean);
+  const section = sections.find(item => sectionPaths[item] === `/${first}`) ?? "Overview";
+  return { section, orderId: section === "Orders" && /^[0-9a-f-]{36}$/i.test(second) ? second : "" };
+}
 const orderFilters: { key: OrderFilter; label: string }[] = [
   { key: "all", label: "All" }, { key: "pending_payment", label: "Pending payment" },
   { key: "processing", label: "Processing" }, { key: "on_hold", label: "On hold" },
@@ -67,7 +75,22 @@ export default function Dashboard() {
   const signedIn = authState === "ready";
   const [storeMode, setStoreMode] = useState<StoreVisibility["mode"] | "">("");
   useEffect(() => { if (signedIn) void loadStoreSettings().then(store => setStoreMode(store.mode)).catch(() => undefined); }, [signedIn]);
-  const [section, setSection] = useState<Section>("Overview");
+  // The address bar holds the open tab, so refresh, Back and shared links all work.
+  const [route, setRoute] = useState<Route>(readRoute);
+  const section = route.section;
+  function navigate(next: Route) {
+    setRoute(next);
+    if (window.location.pathname !== routePath(next)) { window.history.pushState(null, "", routePath(next)); window.scrollTo(0, 0); }
+  }
+  const setSection = (next: Section) => navigate({ section: next, orderId: "" });
+  useEffect(() => {
+    const onHistory = () => setRoute(readRoute());
+    window.addEventListener("popstate", onHistory);
+    return () => window.removeEventListener("popstate", onHistory);
+  }, []);
+  useEffect(() => { document.title = `${section} · Kalacar owner`; }, [section]);
+  // An address that isn't a dashboard page shows Overview, so make the address say so too.
+  useEffect(() => { if (window.location.pathname !== routePath(route)) window.history.replaceState(null, "", routePath(route) + window.location.search); }, [route]);
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
@@ -83,7 +106,6 @@ export default function Dashboard() {
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [apiError, setApiError] = useState("");
-  const [openOrderId, setOpenOrderId] = useState("");
 
   async function refreshProducts() {
     try {
@@ -114,7 +136,7 @@ export default function Dashboard() {
       url.searchParams.delete("auth_error");
       window.history.replaceState(null, "", url);
     }
-    fetch("/api/auth/session?scope=owner", { cache: "no-store" })
+    const checkSession = () => fetch("/api/auth/session?scope=owner", { cache: "no-store" })
       .then(async response => {
         const data = await response.json() as { user?: { name: string; email: string } | null; isOwner?: boolean; error?: string };
         if (!response.ok) throw new Error(data.error || "Account service is unavailable.");
@@ -122,6 +144,11 @@ export default function Dashboard() {
         setAuthState(!data.user ? "signedOut" : data.isOwner ? "ready" : "notOwner");
       })
       .catch(error => { setAuthError(error instanceof Error ? error.message : "Account service is unavailable."); setAuthState("signedOut"); });
+    void checkSession();
+    // Back can restore an old copy of the sign-in page; check again so a signed-in owner goes straight in.
+    const onPageShow = (event: PageTransitionEvent) => { if (event.persisted) { setRoute(readRoute()); void checkSession(); } };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
 
   async function signOut() {
@@ -219,13 +246,13 @@ export default function Dashboard() {
     {authError && <p className="form-error" role="alert">{authError}</p>}
     {authState === "notOwner"
       ? <button className="primary wide" onClick={() => void signOut()}>Sign out and use another account</button>
-      : <a className="google-button" href="/api/auth/google/start?next=/&scope=owner"><svg aria-hidden="true" viewBox="0 0 18 18" width="18" height="18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>Continue with Google</a>}
+      : <a className="google-button" href={`/api/auth/google/start?next=${encodeURIComponent(window.location.pathname)}&scope=owner`}><svg aria-hidden="true" viewBox="0 0 18 18" width="18" height="18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>Continue with Google</a>}
     <p className="demo-note">Only emails listed in KALACAR_OWNER_EMAILS can open the dashboard.</p>
   </section></main>;
 
   const todayLabel = new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long" }).format(new Date()).toUpperCase();
   const pendingCount = orderCounts?.pending_payment ?? 0;
-  const content = section === "Products" ? <Products products={products} drafts={productDrafts} setDrafts={setProductDrafts} onColourSaved={colourSaved} onProductCreated={refreshProducts} apiError={apiError} /> : section === "Orders" ? <Orders orders={orders} loading={ordersLoading} error={ordersError} filter={orderFilter} counts={orderCounts} onFilter={setOrderFilter} paymentMode={metrics?.paymentMode ?? "unconfigured"} onUpdate={updateOrder} openOrderId={openOrderId} onOrderOpened={() => setOpenOrderId("")} /> : section === "Coupons" ? <Coupons /> : section === "Customers" ? <Customers onOpenOrder={id => { setOrderFilter("all"); setOpenOrderId(id); setSection("Orders"); }} /> : section === "Overview" ? <>
+  const content = section === "Products" ? <Products products={products} drafts={productDrafts} setDrafts={setProductDrafts} onColourSaved={colourSaved} onProductCreated={refreshProducts} apiError={apiError} /> : section === "Orders" ? <Orders orders={orders} loading={ordersLoading} error={ordersError} filter={orderFilter} counts={orderCounts} onFilter={setOrderFilter} paymentMode={metrics?.paymentMode ?? "unconfigured"} onUpdate={updateOrder} routeOrderId={route.orderId} onOpenOrder={id => navigate({ section: "Orders", orderId: id })} onCloseOrder={() => navigate({ section: "Orders", orderId: "" })} /> : section === "Coupons" ? <Coupons /> : section === "Customers" ? <Customers onOpenOrder={id => { setOrderFilter("all"); navigate({ section: "Orders", orderId: id }); }} /> : section === "Overview" ? <>
     <div className="welcome-row"><div><p className="overline">{todayLabel}</p><h1>Good morning</h1><p className="muted">A clear view of your little shop.</p></div><span className="preview-pill"><i /> Local preview</span></div>
     {metrics?.paymentMode === "test" && <p className="test-mode-warning" role="note">Razorpay test mode · Orders and revenue shown here are test activity, not live sales.</p>}
     {metrics?.paymentMode === "unconfigured" && <p className="test-mode-warning" role="note">Payment mode is not configured · Do not treat these order totals as live sales.</p>}
@@ -236,7 +263,7 @@ export default function Dashboard() {
   </> : section === "Settings" ? <StoreSettings onStoreSaved={store => setStoreMode(store.mode)} /> : <div className="page-heading"><div><p className="overline">WORKSPACE</p><h1>{section}</h1><p className="muted">This workspace is planned and will be added in a later dashboard feature.</p></div><StatusChip tone="neutral">Planned</StatusChip></div>;
 
   const filteredSections = sections.filter(item => item.toLowerCase().includes(commandQuery.toLowerCase()));
-  return <div className="app-shell"><aside className="sidebar"><a className="brand" href="#"><span className="brand-mark">k.</span><span>kalacar<small>OWNER SPACE</small></span></a><p className="nav-label">WORKSPACE</p><nav>{sections.map(item => <button key={item} className={section === item ? "nav-item selected" : "nav-item"} onClick={() => { setSection(item); setMessage(""); }}><span className="nav-icon">{(() => { const Icon = sectionIcons[item]; return <Icon />; })()}</span>{item}{item === "Orders" && pendingCount > 0 && <b className="nav-count">{pendingCount}</b>}{item === "Products" && unsavedCount > 0 && <b className="nav-count unsaved" title="Unsaved product changes">{unsavedCount}</b>}</button>)}</nav><div className="sidebar-bottom"><div className="owner-avatar">{(owner?.name ?? "S").charAt(0).toUpperCase()}</div><div className="owner-copy"><b>{owner?.name ?? "Shop owner"}</b><small>{owner?.email ?? ""}</small></div><button className="signout" title="Sign out" aria-label="Sign out" onClick={() => void signOut()}><SignOutIcon /></button></div></aside>
+  return <div className="app-shell"><aside className="sidebar"><a className="brand" href="/" onClick={event => { event.preventDefault(); setSection("Overview"); }}><span className="brand-mark">k.</span><span>kalacar<small>OWNER SPACE</small></span></a><p className="nav-label">WORKSPACE</p><nav>{sections.map(item => <button key={item} className={section === item ? "nav-item selected" : "nav-item"} onClick={() => { setSection(item); setMessage(""); }}><span className="nav-icon">{(() => { const Icon = sectionIcons[item]; return <Icon />; })()}</span>{item}{item === "Orders" && pendingCount > 0 && <b className="nav-count">{pendingCount}</b>}{item === "Products" && unsavedCount > 0 && <b className="nav-count unsaved" title="Unsaved product changes">{unsavedCount}</b>}</button>)}</nav><div className="sidebar-bottom"><div className="owner-avatar">{(owner?.name ?? "S").charAt(0).toUpperCase()}</div><div className="owner-copy"><b>{owner?.name ?? "Shop owner"}</b><small>{owner?.email ?? ""}</small></div><button className="signout" title="Sign out" aria-label="Sign out" onClick={() => void signOut()}><SignOutIcon /></button></div></aside>
     <main className="main-content"><div className="mobile-brand"><span className="brand-mark">k.</span><span>kalacar <small>OWNER SPACE</small></span><button className="signout" onClick={() => void signOut()}><SignOutIcon /></button></div><div className="content-wrap"><header className="admin-bar"><button className="command-trigger" onClick={() => { setCommandOpen(true); setCommandQuery(""); }}><SearchIcon size={15} /> Search dashboard <kbd>⌘K</kbd></button><div className="admin-bar-actions"><button className="visibility-pill" type="button" title="Change this in Settings" onClick={() => setSection("Settings")}><i /> Shop <strong>{storeMode === "coming_soon" ? "Coming soon" : storeMode === "live" ? "Live" : "…"}</strong></button><button className="profile-trigger" onClick={() => setProfileOpen(!profileOpen)} aria-expanded={profileOpen}><span className="owner-avatar">{(owner?.name ?? "S").charAt(0).toUpperCase()}</span><span>{owner?.name ?? "Shop owner"}</span><ChevronDown size={14} /></button>{profileOpen && <div className="profile-menu"><strong>{owner?.name ?? "Shop owner"}</strong><small>{owner?.email}</small><button onClick={() => void signOut()}>Sign out</button></div>}</div></header><nav className="mobile-section-nav" aria-label="Dashboard sections">{sections.map(item => <button key={item} className={section === item ? "selected" : ""} aria-current={section === item ? "page" : undefined} onClick={() => setSection(item)}><span className="mobile-nav-icon">{(() => { const Icon = sectionIcons[item]; return <Icon size={16} />; })()}</span>{item}{item === "Orders" && pendingCount > 0 && <b>{pendingCount}</b>}{item === "Products" && unsavedCount > 0 && <b className="unsaved" title="Unsaved product changes">{unsavedCount}</b>}</button>)}</nav>{bannerVisible && <aside className="announcement"><span><b>Setup in progress</b><span> Dashboard tools are being added in stages.</span></span><button aria-label="Dismiss setup notice" onClick={() => { window.sessionStorage.setItem("kalacar-dashboard-banner-dismissed", "yes"); setBannerVisible(false); }}><CloseIcon size={14} /></button></aside>}{apiError && <div className="warning" role="status">{apiError}</div>}{content}{message && <div className="toast" role="status">{message}</div>}<footer>Kalacar owner dashboard</footer></div></main>
     <ModalDrawer open={commandOpen} title="Go to" onClose={() => setCommandOpen(false)}><FormField label="Search sections"><input autoFocus value={commandQuery} onChange={event => setCommandQuery(event.target.value)} placeholder="Type a section name…" /></FormField><div className="command-results">{filteredSections.map(item => <button key={item} onClick={() => { setSection(item); setCommandOpen(false); }}>{item}<EnterIcon size={14} /></button>)}{filteredSections.length === 0 && <p>No matching sections.</p>}</div></ModalDrawer>
   </div>;
@@ -619,7 +646,7 @@ function ProductPreviewAccordionContent({ content, format }: { content: string; 
 }
 const statusTone = (status: string): "success" | "warning" | "danger" | "neutral" =>
   status === "Paid" ? "success" : ["Refunded", "Cancelled"].includes(status) ? "neutral" : ["Paid after cancel", "Payment failed", "Payment setup failed"].includes(status) ? "danger" : "warning";
-function Orders({ orders, loading, error, filter, counts, onFilter, paymentMode, onUpdate, openOrderId = "", onOrderOpened }: { orders: Order[]; loading: boolean; error: string; filter: OrderFilter; counts: OrderStatusCounts | null; onFilter: (filter: OrderFilter) => void; paymentMode: AdminMetrics["paymentMode"]; onUpdate: (id: string, status: string, expected: string) => Promise<string>; openOrderId?: string; onOrderOpened?: () => void }) {
+function Orders({ orders, loading, error, filter, counts, onFilter, paymentMode, onUpdate, routeOrderId, onOpenOrder, onCloseOrder }: { orders: Order[]; loading: boolean; error: string; filter: OrderFilter; counts: OrderStatusCounts | null; onFilter: (filter: OrderFilter) => void; paymentMode: AdminMetrics["paymentMode"]; onUpdate: (id: string, status: string, expected: string) => Promise<string>; routeOrderId: string; onOpenOrder: (id: string) => void; onCloseOrder: () => void }) {
   const [detailOrderId, setDetailOrderId] = useState("");
   const { config: messageConfig, error: messageError } = useMessageConfig();
   const [detail, setDetail] = useState<OrderDetail | null>(null);
@@ -636,13 +663,15 @@ function Orders({ orders, loading, error, filter, counts, onFilter, paymentMode,
     } catch (cause) { setDetailError(cause instanceof Error ? cause.message : "Order details are temporarily unavailable."); }
     finally { setDetailLoading(false); }
   }
-  // Opened from another section (a customer's order history): show that order's details once.
+  // The address decides which order is open, so Back closes it and refresh keeps it open.
   useEffect(() => {
-    if (!openOrderId) return;
-    const timer = window.setTimeout(() => { void openDetails(openOrderId); onOrderOpened?.(); });
+    const timer = window.setTimeout(() => {
+      if (routeOrderId) void openDetails(routeOrderId);
+      else { setDetailOrderId(""); setDetail(null); setDetailError(""); }
+    });
     return () => window.clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openOrderId]);
+  }, [routeOrderId]);
   /** Re-reads the open order without clearing the drawer, so confirmation messages stay visible. */
   async function refreshDetails(id: string) {
     try {
@@ -662,8 +691,8 @@ function Orders({ orders, loading, error, filter, counts, onFilter, paymentMode,
     {paymentMode === "test" && <p className="test-mode-warning" role="note">Razorpay test mode · These orders are test activity, not live sales.</p>}
     {paymentMode === "unconfigured" && <p className="test-mode-warning" role="note">Payment mode is not configured · Do not treat these orders as live sales.</p>}
     <section className="panel order-filters" role="group" aria-label="Filter orders by status">{orderFilters.map(item => <button type="button" key={item.key} className={filter === item.key ? "order-filter selected" : "order-filter"} aria-pressed={filter === item.key} onClick={() => onFilter(item.key)}>{item.label}<span>{counts?.[item.key] ?? "—"}</span></button>)}</section>
-    <section className="panel">{error ? <p className="empty-orders" role="alert">{error}</p> : loading ? <p className="empty-orders">Loading orders…</p> : orders.length ? <><p className="muted order-limit-note">Showing {orders.length} most recent of {total} matching orders.</p><DataTable columns={[{ key: "customer", label: "Customer", render: o => <div className="table-customer"><b>{o.customer}</b><small>{o.item}</small></div> }, { key: "order", label: "Order", render: o => <span>{o.id.length > 12 ? o.id.slice(0, 8) : o.id}</span> }, { key: "status", label: "Status", render: o => <StatusChip tone={statusTone(o.status)}>{o.status}</StatusChip> }, { key: "total", label: "Total", render: o => <b>₹{o.total}</b> }, { key: "actions", label: "Actions", render: o => <div className="order-actions"><button className="text-button" type="button" onClick={() => void openDetails(o.id)}>View details</button>{o.status === "Paid" ? <FulfillmentControl order={o} current={o.fulfillmentStatus || "unfulfilled"} onSave={onUpdate} messageConfig={messageConfig} messageError={messageError} /> : <span className="table-muted">{(o.fulfillmentStatus || "unfulfilled").replaceAll("_", " ")}</span>}</div> }]} rows={orders} rowKey={o => o.id} /></> : <p className="empty-orders">{filter === "all" ? "No orders have been recorded." : `No ${orderFilters.find(item => item.key === filter)?.label.toLowerCase()} orders.`}</p>}</section>
-    <ModalDrawer open={Boolean(detailOrderId)} title={detail ? `Order ${detail.id.slice(0, 8)}` : "Order details"} onClose={() => { setDetailOrderId(""); setDetail(null); setDetailError(""); }}><div className="order-detail-content">{detailLoading ? <p role="status">Loading saved order details…</p> : detailError && !detail ? <p role="alert" className="order-detail-error">{detailError}</p> : detail ? <>
+    <section className="panel">{error ? <p className="empty-orders" role="alert">{error}</p> : loading ? <p className="empty-orders">Loading orders…</p> : orders.length ? <><p className="muted order-limit-note">Showing {orders.length} most recent of {total} matching orders.</p><DataTable columns={[{ key: "customer", label: "Customer", render: o => <div className="table-customer"><b>{o.customer}</b><small>{o.item}</small></div> }, { key: "order", label: "Order", render: o => <span>{o.id.length > 12 ? o.id.slice(0, 8) : o.id}</span> }, { key: "status", label: "Status", render: o => <StatusChip tone={statusTone(o.status)}>{o.status}</StatusChip> }, { key: "total", label: "Total", render: o => <b>₹{o.total}</b> }, { key: "actions", label: "Actions", render: o => <div className="order-actions"><button className="text-button" type="button" onClick={() => onOpenOrder(o.id)}>View details</button>{o.status === "Paid" ? <FulfillmentControl order={o} current={o.fulfillmentStatus || "unfulfilled"} onSave={onUpdate} messageConfig={messageConfig} messageError={messageError} /> : <span className="table-muted">{(o.fulfillmentStatus || "unfulfilled").replaceAll("_", " ")}</span>}</div> }]} rows={orders} rowKey={o => o.id} /></> : <p className="empty-orders">{filter === "all" ? "No orders have been recorded." : `No ${orderFilters.find(item => item.key === filter)?.label.toLowerCase()} orders.`}</p>}</section>
+    <ModalDrawer open={Boolean(detailOrderId)} title={detail ? `Order ${detail.id.slice(0, 8)}` : "Order details"} onClose={onCloseOrder}><div className="order-detail-content">{detailLoading ? <p role="status">Loading saved order details…</p> : detailError && !detail ? <p role="alert" className="order-detail-error">{detailError}</p> : detail ? <>
       <div className="order-detail-summary"><div><span>Customer</span><b>{detail.customer}</b></div><div><span>Order status</span><StatusChip tone={statusTone(detail.status)}>{detail.status}</StatusChip></div><div><span>Email</span><a href={`mailto:${detail.email}`}>{detail.email}</a></div><div><span>Phone</span><a href={`tel:${detail.phone}`}>{detail.phone}</a></div></div>
       <section className="order-detail-section"><h3>Items</h3>{detail.items.length ? <div className="order-detail-items">{detail.items.map((item, index) => <div className="order-detail-item" key={`${item.id}-${index}`}><span>{item.name}{item.variant && item.variant !== "Standard" && <em className="order-item-colour">{item.variant}</em>}<small>{item.quantity} × ₹{item.price}</small></span><b>₹{item.quantity * item.price}</b></div>)}{detail.giftWrap && <div className="order-detail-item gift-line"><span>Gift-ready packaging<small>Wrap this order as a gift</small></span><b>₹{detail.giftWrapPrice ?? 0}</b></div>}{detail.couponCode && (detail.discount ?? 0) > 0 && <div className="order-detail-item coupon-line"><span>Coupon {detail.couponCode}<small>Discount on murtis</small></span><b>−₹{detail.discount}</b></div>}</div> : <p>No item rows were saved for this order.</p>}<div className="order-detail-total"><span>Order total</span><b>₹{detail.total}</b></div></section>
       <section className="order-detail-section"><div className="order-detail-heading"><h3>Delivery address</h3><button className="secondary" type="button" onClick={() => void copyAddress()}>{addressCopied ? "Copied" : "Copy address"}</button></div><address>{detail.customer}{detail.phone && <><br />{detail.phone}</>}{detail.address && <><br />{detail.address}</>}{detail.pincode && <><br />PIN {detail.pincode}</>}</address></section>
