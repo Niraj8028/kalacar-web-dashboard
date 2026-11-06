@@ -7,6 +7,7 @@ import { CategoriesPanel, loadCategories } from "./categories";
 import type { Category } from "./categories";
 import { Coupons } from "./coupons";
 import { useLiveRefresh } from "./live";
+import { PaymentStatusPanel } from "./payment-status";
 import { StoreVisibilityPanel, loadStoreSettings } from "./store-visibility";
 import type { StoreSettings as StoreVisibility } from "./store-visibility";
 import { MessageButtons, MessageTemplatesPanel, useMessageConfig } from "./messages";
@@ -863,6 +864,7 @@ function StoreSettings({ onStoreSaved }: { onStoreSaved: (store: StoreVisibility
   return <>
     <div className="page-heading"><div><p className="overline">STORE</p><h1>Settings</h1><p className="muted">Offers and options you can change any time — no code needed.</p></div></div>
     <StoreVisibilityPanel onSaved={onStoreSaved} />
+    <PaymentStatusPanel />
     <CategoriesPanel />
     <MessageTemplatesPanel />
     <PrintLabelPanel />

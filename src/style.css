@@ -260,3 +260,6 @@ footer{margin-top:8px;font-size:12px;color:var(--muted)}
 /* Orders: keep WhatsApp, Email, SMS and Call on one line where the table has room */
 @media(min-width:1280px){.data-table td[data-label="Actions"] .fulfillment-picker{width:345px}.data-table td[data-label="Actions"] .message-row{flex-wrap:nowrap}}
 @media(max-width:680px){.data-table td[data-label="Actions"]{grid-column:1/-1}.fulfillment-picker .message-row{width:100%}}
+/* Settings: Razorpay status */
+.payment-status-list{display:grid;gap:10px;margin:0}.payment-status-list>div{display:grid;grid-template-columns:minmax(150px,220px) minmax(0,1fr);gap:12px;padding-top:10px;border-top:1px solid #eceae4}.payment-status-list dt{color:#77756c;font-size:13px}.payment-status-list dd{display:grid;gap:3px;margin:0;color:#32332b;font-size:13px;font-weight:600}.payment-status-list small{color:#77756c;font-size:12px;font-weight:400}
+@media(max-width:680px){.payment-status-list>div{grid-template-columns:1fr;gap:3px}}
