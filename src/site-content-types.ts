@@ -1,6 +1,6 @@
 // Same shapes as kalacar-app/src/data/site-content.ts. The server checks everything it receives.
 export type HomeContent = {
-  hero: { show: boolean; productId: string; backgroundImage: string; showEyebrow: boolean; eyebrow: string; showTitle: boolean; title: string; showDescription: boolean; description: string; buy: { show: boolean; label: string; showPrice: boolean }; explore: { show: boolean; label: string; link: string } };
+  hero: { show: boolean; productId: string; backgroundImage: string; desktopImage: string; showEyebrow: boolean; eyebrow: string; showTitle: boolean; title: string; showDescription: boolean; description: string; buy: { show: boolean; label: string; showPrice: boolean }; explore: { show: boolean; label: string; link: string } };
   firstLaunch: { show: boolean; showTitle: boolean; title: string; showDescription: boolean; description: string; productIds: string[] };
   comingSoon: { show: boolean; showTitle: boolean; title: string; showDescription: boolean; description: string; items: { name: string; image: string }[] };
   collections: { show: boolean; showTitle: boolean; title: string; showDescription: boolean; description: string };

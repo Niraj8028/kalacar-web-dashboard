@@ -45,7 +45,8 @@ export function HomeEditor({ products }: { products: ProductOption[] }) {
   </>;
   return <div className="editor-stack">
     <SectionCard overline="TOP OF THE PAGE" title="Hero" show={hero.show} onShow={show => set("hero", { show })}>
-      <ImageField label="Background photo" value={hero.backgroundImage} onChange={backgroundImage => set("hero", { backgroundImage })} />
+      <ImageField label="Hero photo (used on phones, and on desktop if there's no wide photo)" value={hero.backgroundImage} onChange={backgroundImage => set("hero", { backgroundImage })} />
+      <ImageField label="Wide photo for desktop (optional, landscape)" value={hero.desktopImage} onChange={desktopImage => set("hero", { desktopImage })} />
       <ToggleText label="Small line" show={hero.showEyebrow} onShow={showEyebrow => set("hero", { showEyebrow })} value={hero.eyebrow} onChange={eyebrow => set("hero", { eyebrow })} max={60} />
       <ToggleText label="Main title" show={hero.showTitle} onShow={showTitle => set("hero", { showTitle })} value={hero.title} onChange={title => set("hero", { title })} max={120} />
       <ToggleText label="Description" show={hero.showDescription} onShow={showDescription => set("hero", { showDescription })} value={hero.description} onChange={description => set("hero", { description })} max={300} rows={2} />
@@ -71,7 +72,7 @@ export function HomeEditor({ products }: { products: ProductOption[] }) {
     </SectionCard>
     <SectionCard overline="CATEGORIES" title="Collections" show={collections.show} onShow={show => set("collections", { show })}>
       {heading("collections")}
-      <p className="muted">Shown as circles, 2 per row on phones. Only categories with products appear. Photos save straight away. Add or rename categories in Settings.</p>
+      <p className="muted">Shown as cards: the first is large, with the others beside it. Only categories with products appear. Photos save straight away. Add or rename categories in Settings.</p>
       <div className="editor-image-grid">{categories.map(category => <CategoryImage key={category.id} category={category} onChanged={() => void loadCategories()} />)}</div>
     </SectionCard>
     <SectionCard overline="TRUST" title="Why choose us" show={why.show} onShow={show => set("why", { show })}>
