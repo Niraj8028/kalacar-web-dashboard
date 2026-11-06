@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SettingSwitch } from "./setting-switch";
 
 type Festive = { diwali: boolean };
 
@@ -35,9 +36,9 @@ export function FestivePanel() {
   return <section className={`panel settings-card${dirty ? " dirty" : ""}`} aria-labelledby="festive-title">
     <div className="panel-head"><div><p className="overline">FESTIVAL</p><h2 id="festive-title">Diwali decoration</h2></div></div>
     <p className="muted">Hangs a flower garland and lights across the top of the shop, with diyas on the home page. Customers can still click everything under it. It stays off the cart and account pages.</p>
-    {saved !== null && <div className="settings-grid"><label><input type="checkbox" checked={draft} onChange={event => { setDraft(event.target.checked); setError(""); setMessage(""); }} /> Show Diwali decoration</label></div>}
+    {saved !== null && <div className="setting-stack"><SettingSwitch label="Show Diwali decoration" hint="Customers see it as soon as you save." checked={draft} onChange={value => { setDraft(value); setError(""); setMessage(""); }} /></div>}
     {error && <p className="order-detail-error" role="alert">{error}</p>}
     {message && <p className="order-saved" role="status">{message}</p>}
-    {saved !== null && <div className="settings-actions">{dirty && <span className="stock-change-summary">Unsaved changes</span>}<button className="text-button" type="button" disabled={!dirty || busy} onClick={() => void save()}>{busy ? "Saving…" : "Save"}</button></div>}
+    {saved !== null && <div className="settings-actions">{dirty && <span className="stock-change-summary">Unsaved changes</span>}<button className="primary" type="button" disabled={!dirty || busy} onClick={() => void save()}>{busy ? "Saving…" : "Save"}</button></div>}
   </section>;
 }

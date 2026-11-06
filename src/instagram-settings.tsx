@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ExternalLinkIcon } from "./icons";
+import { SettingSwitch } from "./setting-switch";
 
 type Instagram = { show: boolean; username: string };
 
@@ -36,13 +37,13 @@ export function InstagramPanel() {
   return <section className={`panel settings-card${dirty ? " dirty" : ""}`} aria-labelledby="instagram-title">
     <div className="panel-head"><div><p className="overline">SOCIAL</p><h2 id="instagram-title">Instagram</h2></div></div>
     <p className="muted">Shows a follow band above the footer and a follow button below the videos on the home page. Both open this account.</p>
-    {saved === null ? !error && <p className="muted">Loading Instagram account…</p> : <div className="settings-grid">
-      <label>Instagram username<input maxLength={120} value={draft.username} placeholder="yourpage" autoCapitalize="none" autoCorrect="off" spellCheck={false} onChange={event => { setDraft(current => ({ ...current, username: event.target.value })); setError(""); setMessage(""); }} /></label>
-      <label><input type="checkbox" checked={draft.show} onChange={event => { setDraft(current => ({ ...current, show: event.target.checked })); setError(""); setMessage(""); }} /> Show on the home page</label>
+    {saved === null ? !error && <p className="muted">Loading Instagram account…</p> : <div className="setting-stack">
+      <label className="setting-field">Instagram username<input maxLength={120} value={draft.username} placeholder="yourpage" autoCapitalize="none" autoCorrect="off" spellCheck={false} onChange={event => { setDraft(current => ({ ...current, username: event.target.value })); setError(""); setMessage(""); }} /></label>
+      <SettingSwitch label="Show on the home page" hint="Turn off to hide the band and the follow button." checked={draft.show} onChange={show => { setDraft(current => ({ ...current, show })); setError(""); setMessage(""); }} />
     </div>}
-    {saved?.username && <p><a href={`https://www.instagram.com/${saved.username}/`} target="_blank" rel="noopener noreferrer">Open @{saved.username} <ExternalLinkIcon size={13} /></a></p>}
+    {saved?.username && <p className="setting-link"><a href={`https://www.instagram.com/${saved.username}/`} target="_blank" rel="noopener noreferrer">Open @{saved.username} <ExternalLinkIcon size={13} /></a></p>}
     {error && <p className="order-detail-error" role="alert">{error}</p>}
     {message && <p className="order-saved" role="status">{message}</p>}
-    {saved !== null && <div className="settings-actions">{dirty && <span className="stock-change-summary">Unsaved changes</span>}<button className="text-button" type="button" disabled={!dirty || busy} onClick={() => void save()}>{busy ? "Saving…" : "Save"}</button></div>}
+    {saved !== null && <div className="settings-actions">{dirty && <span className="stock-change-summary">Unsaved changes</span>}<button className="primary" type="button" disabled={!dirty || busy} onClick={() => void save()}>{busy ? "Saving…" : "Save"}</button></div>}
   </section>;
 }

@@ -10,7 +10,7 @@ test("the Instagram account is set in Settings and refuses a bad username", asyn
   await card.getByRole("button", { name: "Save" }).click();
   await expect(card.getByRole("alert")).toContainText("valid Instagram username");
   await username.fill("@kalacar.in");
-  await card.getByLabel("Show on the home page").check();
+  await card.getByRole("switch", { name: /Show on the home page/ }).click();
   await card.getByRole("button", { name: "Save" }).click();
   await expect(card.getByRole("status")).toHaveText("Saved.");
   await expect(username).toHaveValue("kalacar.in");

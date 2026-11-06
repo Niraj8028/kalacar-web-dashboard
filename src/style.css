@@ -286,3 +286,22 @@ footer{margin-top:8px;font-size:12px;color:var(--muted)}
 .settings-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:var(--gap-section)}.settings-tab{display:grid;align-content:start;gap:3px;min-height:72px;padding:11px 13px;border:1px solid #e8e6df;border-radius:8px;background:#fff;color:#32332b;font:inherit;text-align:left;cursor:pointer}.settings-tab:hover{border-color:#cfd8c9}.settings-tab.selected{border-color:#496047;background:#edf2eb;box-shadow:inset 0 0 0 1px #496047}.settings-tab b{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:14px}.settings-tab small{color:#77756c;font-size:12px;line-height:1.35}.settings-tab-unsaved{padding:1px 7px;border-radius:999px;background:#fbf1dc;color:#7a5a18;font-size:11px;font-weight:700}.settings-tab-title{margin:0 0 10px;font-size:18px}
 @media(max-width:1000px){.settings-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:680px){.settings-tab{min-height:84px;padding:10px}}
+
+/* Clear on/off settings */
+.setting-stack{display:grid;gap:14px;max-width:560px}
+.setting-field{display:grid;gap:6px;color:#55544c;font-size:13px;font-weight:500}
+.setting-field input{width:100%;border:1px solid #e3e1da;border-radius:8px;padding:10px 12px;color:#32332b;font:inherit;font-size:14px}
+.setting-switch{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;border:1px solid #e3e1da;border-radius:8px;background:#fff;color:#32332b;font:inherit;text-align:left;cursor:pointer}
+.setting-switch:hover{border-color:#b9c4b5}
+.setting-switch:focus-visible{outline:2px solid #496047;outline-offset:2px}
+.setting-switch-text{display:grid;flex:1;gap:2px;min-width:0}
+.setting-switch-text b{font-size:14px;font-weight:600}
+.setting-switch-text small{color:#69675e;font-size:13px;font-weight:400}
+.setting-switch-state{color:#69675e;font-size:13px;font-weight:600}
+.setting-switch.on .setting-switch-state{color:#3f543a}
+.setting-switch-track{position:relative;flex:0 0 auto;width:44px;height:24px;border-radius:12px;background:#c9c7bf;transition:background .15s}
+.setting-switch-track i{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgb(0 0 0 / 25%);transition:transform .15s}
+.setting-switch.on .setting-switch-track{background:#496047}
+.setting-switch.on .setting-switch-track i{transform:translateX(20px)}
+.setting-link{margin:14px 0 0}
+@media(prefers-reduced-motion:reduce){.setting-switch-track,.setting-switch-track i{transition:none}}
