@@ -8,10 +8,15 @@ const T = (word: string) => ({ whatsapp: `WhatsApp ${word} {order_id}`, sms: `SM
 const templates = { unfulfilled: T("received"), processing: T("preparing"), dispatched: { ...T("sent"), sms: "Sent by {courier}, ID {tracking_id}" }, completed: { ...T("done"), sms: "" } };
 const label = { deliverTo: "{customer_name}", from: "Kalacar", details: "{order_id}" };
 
-export type ApiState = { orders: ReturnType<typeof order>[]; stamp: string; realtime: { key: string | null; cluster: string | null }; calls: Record<string, number>; shopLink: string; failing: Set<string>; payment: object };
+const HOME = { hero: { show: true, productId: "", backgroundImage: "", showEyebrow: true, eyebrow: "THE SHOP", showTitle: true, title: "Hero title", showDescription: true, description: "Hero text", buy: { show: true, label: "Buy now", showPrice: true }, explore: { show: true, label: "Explore", link: "#catalogue" } }, firstLaunch: { show: true, showTitle: true, title: "Our First Launch", showDescription: false, description: "", productIds: [] }, comingSoon: { show: true, showTitle: true, title: "Coming Soon", showDescription: false, description: "", items: [] }, collections: { show: true, showTitle: true, title: "Our Collections", showDescription: false, description: "" }, why: { show: false, showTitle: true, title: "Why", showDescription: false, description: "", items: [] }, reviews: { show: false, showTitle: true, title: "Love", showDescription: false, description: "", showText: true, showVideo: true }, story: { show: false, showTitle: true, title: "Our Story", showText: true, text: "", showImage: true, image: "", showFounder: true, founder: "" } };
+const PRODUCT_PAGE = { offer: { show: false, title: "Offer", text: "" }, howMade: { show: false, title: "How it's made", message: "", showImage: true, image: "", founder: "" }, faqs: { show: false, title: "FAQs", items: [] }, viewers: { show: false, minimum: 2 }, recentSales: { show: false, showFirstName: false }, soldThisWeek: { show: false, minimum: 3 }, lowStock: { threshold: 3, text: "Only {count} left." }, stickyBar: { show: true }, endLink: { show: true, label: "Explore", link: "/#catalogue" }, whatsappHelp: { show: true, label: "Chat" } };
+const PAGES = [{ slug: "about", title: "About Kalacar", intro: "Intro", content: '<h2>Story</h2><p><mark class="policy-confirm">To confirm: story</mark></p>', seoTitle: "", seoDescription: "About", published: true, inFooter: true, hasForm: false, draft: true }, { slug: "contact", title: "Contact us", intro: "", content: "<p>Reach us</p>", seoTitle: "", seoDescription: "Contact", published: true, inFooter: true, hasForm: true, draft: false }];
+
+export type ApiState = { saved: object[]; reviews: object[]; inquiries: object[];  orders: ReturnType<typeof order>[]; stamp: string; realtime: { key: string | null; cluster: string | null }; calls: Record<string, number>; shopLink: string; failing: Set<string>; payment: object };
 
 export async function mockApi(page: Page, over: Partial<ApiState> = {}) {
   const state: ApiState = {
+    saved: [], reviews: [], inquiries: [],
     orders: [order("aaaaaaaa-1", "Paid Buyer", "Paid"), order("bbbbbbbb-2", "No Phone", "Paid", { phone: "", fulfillmentStatus: "processing" }), order("cccccccc-3", "Waiting Buyer", "Awaiting payment")],
     stamp: "1", realtime: { key: null, cluster: null }, calls: {}, shopLink: "http://localhost:3000/", failing: new Set(),
     payment: { mode: "test", secretSet: true, checkoutOpen: true, webhookSet: false }, ...over,
@@ -31,11 +36,19 @@ export async function mockApi(page: Page, over: Partial<ApiState> = {}) {
     if (path === "/api/admin/metrics") return json(route, { todayRevenue: 999, monthRevenue: 1998, totalOrders: 3, paidOrders: 2, averageOrderValue: 999, lowStockProducts: 1, outOfStockProducts: 1, lowStockThreshold: 3, fulfillmentNeeded: 1, paymentRecovery: 1, paymentMode: "test" });
     if (path === "/api/admin/customers") return json(route, { customers: [{ id: "u1", name: "Paid Buyer", email: "buyer@example.test", phone: "9876543210", google: true, isOwner: false, joined: "2026-11-01", paidOrders: 1, allOrders: 2, spent: 999, refunded: 0, lastOrder: "2026-11-06", city: "Pune", pincode: "411001" }] });
     if (path === "/api/admin/coupons") return json(route, { coupons: [{ id: 1, code: "TEST10", type: "percent", amount: 10, maxDiscount: null, minSpend: 0, usageLimit: 5, oncePerCustomer: false, startsOn: null, expiresOn: null, active: true, used: 1, reserved: 1, discountGiven: 100, status: "active" }] });
-    if (path === "/api/admin/categories") return json(route, { categories: [{ id: 1, name: "Krishna", productCount: 1 }, { id: 2, name: "Ganesh", productCount: 1 }] });
+    if (path === "/api/admin/categories") return json(route, { categories: [{ id: 1, name: "Krishna", productCount: 1, image: "" }, { id: 2, name: "Ganesh", productCount: 1, image: "" }] });
     if (path === "/api/admin/order-messages") return json(route, { templates, defaults: templates, variables: [{ key: "order_id", label: "Order ID" }, { key: "customer_name", label: "Customer name" }, { key: "courier", label: "Courier" }, { key: "tracking_id", label: "Tracking ID" }] });
     if (path === "/api/admin/print-label") return json(route, { template: label, defaults: label, variables: [{ key: "order_id", label: "Order ID" }] });
     if (path === "/api/admin/payment-status") return json(route, state.payment);
     if (path === "/api/admin/push") return json(route, { publicKey: "" });
+    if (path === "/api/admin/site-content" && request.method() === "PATCH") { const body = request.postDataJSON() as object; state.saved.push(body); return json(route, body); }
+    if (path === "/api/admin/site-content") return json(route, { home: HOME, productPage: PRODUCT_PAGE });
+    if (path === "/api/admin/pages") return json(route, { pages: PAGES });
+    if (path.startsWith("/api/admin/pages/") && request.method() === "PATCH") { const body = request.postDataJSON() as object; state.saved.push(body); return json(route, { page: { ...PAGES[0], ...body } }); }
+    if (path === "/api/admin/reviews" && request.method() === "POST") { state.saved.push(request.postDataJSON() as object); return json(route, { ok: true }, 201); }
+    if (path === "/api/admin/reviews") return json(route, { reviews: state.reviews });
+    if (path === "/api/admin/inquiries") return json(route, { inquiries: state.inquiries });
+    if (path.startsWith("/api/admin/inquiries/") && request.method() === "PATCH") return json(route, { ok: true });
     if (path === "/api/admin/settings" && request.method() === "PATCH") {
       const body = request.postDataJSON() as { shopLink?: string };
       if (body.shopLink !== undefined) {

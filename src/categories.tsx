@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
-export type Category = { id: number; name: string; productCount: number };
+export type Category = { id: number; name: string; productCount: number; image: string };
 
 export async function loadCategories(): Promise<Category[]> {
   const response = await fetch("/api/admin/categories", { cache: "no-store" });

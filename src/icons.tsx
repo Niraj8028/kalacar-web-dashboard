@@ -22,7 +22,10 @@ export const RupeeIcon = (p: IconProps) => <Svg {...p}><path d="M7 5h10M7 9h10M1
 export const TrendIcon = (p: IconProps) => <Svg {...p}><path d="M4 16l5-5 4 4 7-7M15 8h5v5" /></Svg>;
 export const PackageIcon = (p: IconProps) => <Svg {...p}><path d="M4 8.5 12 4l8 4.5v7L12 20l-8-4.5z M4 8.5 12 13l8-4.5M12 13v7" /></Svg>;
 
-export const sectionIcons = { Overview: HomeIcon, Orders: OrdersIcon, Products: ProductIcon, Customers: CustomersIcon, Coupons: CouponIcon, Settings: SettingsIcon } as const;
+export const PagesIcon = (p: IconProps) => <Svg {...p}><path d="M7 3.5h7l4 4V20.5H7Z" /><path d="M14 3.5v4h4M10 12h5M10 15.5h5" /></Svg>;
+export const ReviewsIcon = (p: IconProps) => <Svg {...p}><path d="m12 4 2.4 5 5.6.7-4.1 3.8 1.1 5.5-5-2.8-5 2.8 1.1-5.5L4 9.7 9.6 9Z" /></Svg>;
+export const InquiriesIcon = (p: IconProps) => <Svg {...p}><path d="M4 5.5h16v11H9.5L5.5 20v-3.5H4Z" /></Svg>;
+export const sectionIcons = { Overview: HomeIcon, Orders: OrdersIcon, Products: ProductIcon, Customers: CustomersIcon, Coupons: CouponIcon, Pages: PagesIcon, Reviews: ReviewsIcon, Inquiries: InquiriesIcon, Settings: SettingsIcon } as const;
 export const SmsIcon = (p: IconProps) => <Svg {...p}><path d="M4 5.5h16v11H9.5L5.5 20v-3.5H4Z" /><path d="M8 9.5h8M8 12.5h5" /></Svg>;
 export const MailIcon = (p: IconProps) => <Svg {...p}><rect x="3.5" y="5.5" width="17" height="13" rx="1.5" /><path d="m4 7 8 6 8-6" /></Svg>;
 export const PhoneIcon = (p: IconProps) => <Svg {...p}><path d="M6.5 4h3l1.5 4-2 1.3a10 10 0 0 0 5.2 5.2L15.5 12l4 1.5v3a1.5 1.5 0 0 1-1.6 1.5A14.5 14.5 0 0 1 5 5.6 1.5 1.5 0 0 1 6.5 4Z" /></Svg>;

@@ -3,9 +3,9 @@ import type { default as PusherClient } from "pusher-js";
 
 // The dashboard's live connection. It stays open while a tab is open, even hidden, so a new order
 // can still play its sound. It's owner-only, so it stays a handful of connections.
-export type OwnerTopic = "orders" | "products" | "store" | "coupons" | "settings";
+export type OwnerTopic = "orders" | "products" | "store" | "coupons" | "settings" | "inquiries";
 const OWNER_CHANNEL = "private-owner";
-const TOPICS: OwnerTopic[] = ["orders", "products", "store", "coupons", "settings"];
+const TOPICS: OwnerTopic[] = ["orders", "products", "store", "coupons", "settings", "inquiries"];
 
 let pusher: PusherClient | null = null;
 let starting: Promise<PusherClient | null> | null = null;

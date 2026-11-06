@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { DataTable, FormField, ModalDrawer, StatusChip } from "./dashboard-ui";
 import { Customers } from "./customers";
@@ -11,7 +11,11 @@ import { useOrderChanges } from "./live";
 import { stopLive, useLiveRevision } from "./realtime";
 import { OrderAlertsPanel, useOrderAlerts } from "./order-alerts";
 import { removeThisDeviceFromAlerts } from "./push-alerts";
+import { InquiriesSection } from "./inquiries-section";
 import { PaymentStatusPanel } from "./payment-status";
+import { SettingsTabs } from "./settings-tabs";
+import { ProductPageSettingsPanel } from "./product-page-settings";
+import { ReviewsSection } from "./reviews-section";
 import { ShopLinkPanel, VisitWebsiteLink, loadShopLink } from "./shop-link";
 import { StoreVisibilityPanel, loadStoreSettings } from "./store-visibility";
 import type { StoreSettings as StoreVisibility } from "./store-visibility";
@@ -26,15 +30,15 @@ type ProductAccordionRowDraft = { id: string; label: string; value: string };
 type ProductAccordionDraft = ProductAccordion & { mode: "rows" | "text"; rows: ProductAccordionRowDraft[] };
 type ProductImageDraft = { key: string; src?: string; file?: File; preview: string };
 type Colour = { id: string; name: string; swatch: string; gallery: string[]; price: number; originalPrice: number; stock: number; sort: number; active: boolean };
-type Product = { id: string; name: string; deity: string; badge?: string; tagline?: string; specs?: { label: string; value: string }[]; highlights?: string[]; image: string; gallery?: string[]; placement?: string; accordions?: ProductAccordion[]; price: number; stock: number; variants: Colour[] };
+type Product = { id: string; name: string; deity: string; description?: string; bundleIds?: string[]; badge?: string; tagline?: string; specs?: { label: string; value: string }[]; highlights?: string[]; image: string; gallery?: string[]; placement?: string; accordions?: ProductAccordion[]; price: number; stock: number; variants: Colour[] };
 type Order = { id: string; date: string; customer: string; item: string; total: number; status: string; fulfillmentStatus?: string; trackingNote?: string; trackingCourier?: string; trackingId?: string; giftWrap?: boolean; email?: string; phone?: string; address?: string; pincode?: string };
 type OrderDetail = Order & { items: { id: string; name: string; variant?: string; price: number; quantity: number }[]; giftWrap?: boolean; giftWrapPrice?: number; couponCode?: string; discount?: number; rawStatus: string; trackingNote: string; cancelReason: string; cancelledAt: string | null; refundAmount: number | null; refundReason: string; refundReference: string; refundedAt: string | null };
 type AdminMetrics = { todayRevenue: number; monthRevenue: number; totalOrders: number; paidOrders: number; averageOrderValue: number; lowStockProducts: number; outOfStockProducts: number; lowStockThreshold: number; fulfillmentNeeded: number; paymentRecovery: number; paymentMode: "test" | "live" | "unconfigured" };
 type OrderFilter = "all" | "pending_payment" | "processing" | "on_hold" | "dispatched" | "completed" | "cancelled" | "refunded";
 type OrderStatusCounts = Record<OrderFilter, number>;
-type Section = "Overview" | "Orders" | "Products" | "Customers" | "Coupons" | "Settings";
-const sections: Section[] = ["Overview", "Orders", "Products", "Customers", "Coupons", "Settings"];
-const sectionPaths: Record<Section, string> = { Overview: "/", Orders: "/orders", Products: "/products", Customers: "/customers", Coupons: "/coupons", Settings: "/settings" };
+type Section = "Overview" | "Orders" | "Products" | "Customers" | "Coupons" | "Pages" | "Reviews" | "Inquiries" | "Settings";
+const sections: Section[] = ["Overview", "Orders", "Products", "Customers", "Coupons", "Pages", "Reviews", "Inquiries", "Settings"];
+const sectionPaths: Record<Section, string> = { Overview: "/", Orders: "/orders", Products: "/products", Customers: "/customers", Coupons: "/coupons", Pages: "/pages", Reviews: "/reviews", Inquiries: "/inquiries", Settings: "/settings" };
 type Route = { section: Section; orderId: string };
 const routePath = ({ section, orderId }: Route) => orderId ? `${sectionPaths.Orders}/${orderId}` : sectionPaths[section];
 function readRoute(): Route {
@@ -75,6 +79,9 @@ async function loadAdminMetrics() {
   if (!response.ok) throw new Error(data.error || "Dashboard metrics are temporarily unavailable.");
   return data;
 }
+
+// The page editor is large, so it loads only when Pages is opened.
+const PagesSection = lazy(() => import("./pages-section").then(module => ({ default: module.PagesSection })));
 
 export default function Dashboard() {
   const [owner, setOwner] = useState<{ name: string; email: string } | null>(null);
@@ -272,7 +279,7 @@ export default function Dashboard() {
 
   const todayLabel = new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long" }).format(new Date()).toUpperCase();
   const pendingCount = orderCounts?.pending_payment ?? 0;
-  const content = section === "Products" ? <Products products={products} drafts={productDrafts} setDrafts={setProductDrafts} onColourSaved={colourSaved} onProductCreated={refreshProducts} apiError={apiError} /> : section === "Orders" ? <Orders orders={orders} loading={ordersLoading} error={ordersError} filter={orderFilter} counts={orderCounts} onFilter={setOrderFilter} paymentMode={metrics?.paymentMode ?? "unconfigured"} onUpdate={updateOrder} routeOrderId={route.orderId} onOpenOrder={id => navigate({ section: "Orders", orderId: id })} onCloseOrder={() => navigate({ section: "Orders", orderId: "" })} /> : section === "Coupons" ? <Coupons /> : section === "Customers" ? <Customers onOpenOrder={id => { setOrderFilter("all"); navigate({ section: "Orders", orderId: id }); }} /> : section === "Overview" ? <>
+  const content = section === "Products" ? <Products products={products} drafts={productDrafts} setDrafts={setProductDrafts} onColourSaved={colourSaved} onProductCreated={refreshProducts} apiError={apiError} /> : section === "Orders" ? <Orders orders={orders} loading={ordersLoading} error={ordersError} filter={orderFilter} counts={orderCounts} onFilter={setOrderFilter} paymentMode={metrics?.paymentMode ?? "unconfigured"} onUpdate={updateOrder} routeOrderId={route.orderId} onOpenOrder={id => navigate({ section: "Orders", orderId: id })} onCloseOrder={() => navigate({ section: "Orders", orderId: "" })} /> : section === "Coupons" ? <Coupons /> : section === "Pages" ? <Suspense fallback={<p className="muted">Loading the page editor…</p>}><PagesSection products={products.map(({ id, name }) => ({ id, name }))} shopLink={shopLink} /></Suspense> : section === "Reviews" ? <ReviewsSection products={products.map(({ id, name }) => ({ id, name }))} /> : section === "Inquiries" ? <InquiriesSection /> : section === "Customers" ? <Customers onOpenOrder={id => { setOrderFilter("all"); navigate({ section: "Orders", orderId: id }); }} /> : section === "Overview" ? <>
     <div className="welcome-row"><div><p className="overline">{todayLabel}</p><h1>Good morning</h1><p className="muted">A clear view of your little shop.</p></div></div>
     {metrics?.paymentMode === "test" && <p className="test-mode-warning" role="note">Razorpay test mode · Orders and revenue shown here are test activity, not live sales.</p>}
     {metrics?.paymentMode === "unconfigured" && <p className="test-mode-warning" role="note">Payment mode is not configured · Do not treat these order totals as live sales.</p>}
@@ -419,7 +426,7 @@ function Products({ products, drafts, setDrafts, onColourSaved, onProductCreated
   return <>
     <div className="page-heading"><div><p className="overline">YOUR CATALOGUE</p><h1>Products</h1><p className="muted">Change a price or stock, then save that product or colour on its own row.</p></div><div className="heading-actions"><button className="secondary" onClick={() => setEditorProduct(null)}>+ Add product</button></div></div>
     {unsaved.length > 0 && <p className="unsaved-banner" role="status"><b>{unsaved.length === 1 ? "1 item has" : `${unsaved.length} items have`} unsaved changes</b> — highlighted below. Save or undo each one; nothing is saved until you do.</p>}
-    {editorProduct !== undefined && <ProductEditor key={editorProduct?.id ?? "new"} product={editorProduct} onCancel={() => setEditorProduct(undefined)} onSaved={async () => { await onProductCreated(); setEditorProduct(undefined); }} />}
+    {editorProduct !== undefined && <ProductEditor key={editorProduct?.id ?? "new"} allProducts={products} product={editorProduct} onCancel={() => setEditorProduct(undefined)} onSaved={async () => { await onProductCreated(); setEditorProduct(undefined); }} />}
     {!apiError && products.length > 0 && <section className="panel product-tools" aria-label="Find products">
       <div className="product-tools-row"><label className="customer-search"><SearchIcon size={15} /><input type="search" value={productSearch} onChange={event => setProductSearch(event.target.value)} placeholder="Search name, category or colour" aria-label="Search products" /></label>{categoryNames.length > 1 && <label className="category-filter">Category<select value={shownCategory} onChange={event => setCategoryFilter(event.target.value)}><option value="">All categories</option>{categoryNames.map(name => <option key={name} value={name}>{name}</option>)}</select></label>}</div>
       <div className="product-stock-filters" role="group" aria-label="Filter products by stock">{stockFilters.map(item => <button type="button" key={item.key} className={stockFilter === item.key ? "order-filter selected" : "order-filter"} aria-pressed={stockFilter === item.key} onClick={() => setStockFilter(item.key)}>{item.label}<span>{stockCount(item.key)}</span></button>)}</div>
@@ -504,7 +511,7 @@ function ColourEditor({ colour, index, count, onChange, onMove, onRemove, regist
   </fieldset>;
 }
 
-function ProductEditor({ product, onCancel, onSaved }: { product: Product | null; onCancel: () => void; onSaved: () => Promise<void> }) {
+function ProductEditor({ allProducts, product, onCancel, onSaved }: { allProducts: Product[]; product: Product | null; onCancel: () => void; onSaved: () => Promise<void> }) {
   const [name, setName] = useState(product?.name ?? "");
   const [deity, setDeity] = useState(product?.deity ?? "");
   const [categories, setCategories] = useState<Category[] | null>(null);
@@ -517,6 +524,8 @@ function ProductEditor({ product, onCancel, onSaved }: { product: Product | null
   const [badge, setBadge] = useState(product?.badge ?? "");
   const [tagline, setTagline] = useState(product?.tagline ?? "");
   const [placement, setPlacement] = useState(product?.placement ?? "");
+  const [description, setDescription] = useState(product?.description ?? "");
+  const [bundleIds, setBundleIds] = useState<string[]>(product?.bundleIds ?? []);
   const [specs, setSpecs] = useState<{ key: string; label: string; value: string }[]>(() => (product?.specs ?? []).map(spec => ({ key: crypto.randomUUID(), ...spec })));
   const [highlights, setHighlights] = useState<{ key: string; text: string }[]>(() => (product?.highlights ?? []).map(text => ({ key: crypto.randomUUID(), text })));
   const [colours, setColours] = useState<ColourDraft[]>(() => product?.variants.length
@@ -570,7 +579,7 @@ function ProductEditor({ product, onCancel, onSaved }: { product: Product | null
       if (missing) throw new Error(`Add at least one photo for “${missing.name || "a colour"}”.`);
       if (!colours.some(c => c.active)) throw new Error("Keep at least one colour visible in the shop.");
       const form = new FormData();
-      form.set("name", name); form.set("deity", deity); form.set("badge", badge); form.set("tagline", tagline); form.set("placement", placement);
+      form.set("name", name); form.set("deity", deity); form.set("badge", badge); form.set("tagline", tagline); form.set("placement", placement); form.set("description", description); form.set("bundleIds", JSON.stringify(bundleIds));
       form.set("specs", JSON.stringify(specs.filter(spec => spec.label.trim() || spec.value.trim()).map(({ label, value }) => ({ label: label.trim(), value: value.trim() }))));
       form.set("highlights", JSON.stringify(highlights.map(h => h.text.trim()).filter(Boolean)));
       const savedAccordions: ProductAccordion[] = accordions.map(({ mode, rows, ...section }) => ({ ...section, format: mode, content: mode === "rows" ? rows.filter(row => row.label.trim() && row.value.trim()).map(row => `${row.label.trim()}: ${row.value.trim()}`).join("\n") : section.content }));
@@ -611,6 +620,8 @@ function ProductEditor({ product, onCancel, onSaved }: { product: Product | null
       <label>Badge (optional)<input maxLength={40} placeholder="e.g. Flagship, New, Festive" value={badge} onChange={e => setBadge(e.target.value)} /><small className="field-hint">Small label on the product photo and card.</small></label>
       <label>Tagline (optional)<input maxLength={120} placeholder="A short line under the name" value={tagline} onChange={e => setTagline(e.target.value)} /></label>
       <label className="form-grid-wide">Short description / placement (optional)<textarea maxLength={255} value={placement} onChange={e => setPlacement(e.target.value)} /></label>
+      <label className="form-grid-wide">Product description (optional)<textarea rows={4} maxLength={4000} value={description} onChange={e => setDescription(e.target.value)} /><small className="field-hint">Shown above the colours on this product's page. Use Product details below for longer sections such as care instructions.</small></label>
+      <fieldset className="form-grid-wide product-picker"><legend>Frequently bought together (up to 2)</legend>{allProducts.filter(other => other.id !== product?.id).map(other => <label className="editor-check" key={other.id}><input type="checkbox" checked={bundleIds.includes(other.id)} disabled={!bundleIds.includes(other.id) && bundleIds.length >= 2} onChange={e => setBundleIds(current => e.target.checked ? [...current, other.id] : current.filter(id => id !== other.id))} /><span>{other.name}</span></label>)}{allProducts.length < 2 && <p className="muted">Add more products first.</p>}</fieldset>
     </div>
     <div className="colours-editor">
       <div className="accordion-editor-heading"><div><p className="overline">COLOURS</p><h3>Colours, photos, price and stock</h3><p>Each colour has its own photos, price and stock. The first visible colour is shown first in the shop; hidden colours keep their stock but can't be bought.</p></div>
@@ -879,14 +890,22 @@ function StoreSettings({ onStoreSaved, onShopLinkSaved }: { onStoreSaved: (store
     finally { setBusy(false); }
   }
   return <>
-    <div className="page-heading"><div><p className="overline">STORE</p><h1>Settings</h1><p className="muted">Offers and options you can change any time — no code needed.</p></div></div>
-    <StoreVisibilityPanel onSaved={onStoreSaved} />
-    <ShopLinkPanel onSaved={onShopLinkSaved} />
-    <PaymentStatusPanel />
-    <OrderAlertsPanel />
-    <CategoriesPanel />
-    <MessageTemplatesPanel />
-    <PrintLabelPanel />
+    <div className="page-heading"><div><p className="overline">STORE</p><h1>Settings</h1><p className="muted">Choose what you want to change.</p></div></div>
+    <SettingsTabs tabs={[
+      { key: "shop", label: "Shop", contains: "Open or closed, banner, website link", content: <>
+        <StoreVisibilityPanel onSaved={onStoreSaved} />
+        <ShopLinkPanel onSaved={onShopLinkSaved} />
+      </> },
+      { key: "products", label: "Products", contains: "Categories, product page content, real activity", content: <>
+        <CategoriesPanel />
+        <ProductPageSettingsPanel />
+      </> },
+      { key: "orders", label: "Orders", contains: "Customer messages, print label, new-order alerts", content: <>
+        <MessageTemplatesPanel />
+        <PrintLabelPanel />
+        <OrderAlertsPanel />
+      </> },
+      { key: "payments", label: "Cart and payments", contains: "Gift packaging, Razorpay status", content: <>
     <section className={`panel settings-card${dirty ? " dirty" : ""}`} aria-labelledby="gift-title">
       <div className="panel-head"><div><p className="overline">CART ADD-ON</p><h2 id="gift-title">Gift-ready packaging</h2></div>{saved && <StatusChip tone={saved.enabled ? "success" : "neutral"}>{saved.enabled ? "On in shop" : "Off"}</StatusChip>}</div>
       {error && <p className="order-detail-error" role="alert">{error}</p>}
@@ -902,5 +921,8 @@ function StoreSettings({ onStoreSaved, onShopLinkSaved }: { onStoreSaved: (store
         <div className="settings-actions">{dirty && <span className="stock-change-summary">Unsaved changes</span>}<button className="text-button" type="button" disabled={!dirty || busy} onClick={() => saved && setDraft({ ...saved, price: String(saved.price) })}>Undo</button><button className="primary" type="button" disabled={!dirty || busy} onClick={() => void save()}>{busy ? "Saving…" : "Save settings"}</button></div>
       </>}
     </section>
+        <PaymentStatusPanel />
+      </> },
+    ]} />
   </>;
 }
