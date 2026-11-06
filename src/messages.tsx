@@ -35,13 +35,13 @@ const productNames = (order: MessageOrder) => order.items?.length
   ? order.items.map(item => `${item.name}${item.variant && item.variant !== "Standard" ? ` (${item.variant})` : ""} x ${item.quantity}`).join(", ")
   : (order.item ?? "").replaceAll(" · ", " x ");
 
-function orderValues(order: MessageOrder, status: string): Record<string, string> {
+export function orderValues(order: MessageOrder, status: string): Record<string, string> {
   const name = order.customer.trim();
   return { customer_name: name, first_name: name.split(/\s+/)[0] ?? "", product_names: productNames(order), order_id: order.id.slice(0, 8).toUpperCase(), order_total: `₹${order.total.toLocaleString("en-IN")}`, status: statusLabel(status), courier: COURIERS[order.trackingCourier ?? ""]?.label ?? "", tracking_id: order.trackingId ?? "", tracking_link: COURIERS[order.trackingCourier ?? ""]?.url ?? "", tracking_note: order.trackingNote?.trim() ?? "", shop_name: "Kalacar" };
 }
 
 /** Fills a template in one pass, so a customer's own text can't be read as a variable. */
-function fill(template: string, values: Record<string, string>, labels: Variable[]) {
+export function fill(template: string, values: Record<string, string>, labels: Variable[]) {
   const missing = new Set<string>();
   const text = template.replace(/\{([a-z_]+)\}/g, (_match, key: string) => {
     if (!values[key]) missing.add(labels.find(item => item.key === key)?.label.toLowerCase() ?? key);
@@ -51,13 +51,13 @@ function fill(template: string, values: Record<string, string>, labels: Variable
 }
 
 /** Indian 10-digit numbers get 91; other numbers must already include a country code. */
-function whatsappNumber(phone = "") {
+export function whatsappNumber(phone = "") {
   const digits = phone.replace(/\D/g, "").replace(/^0+/, "");
   if (digits.length === 10) return `91${digits}`;
   return digits.length >= 11 && digits.length <= 15 ? digits : "";
 }
 
-function mailLink(email: string, subject: string, body: string) {
+export function mailLink(email: string, subject: string, body: string) {
   const [local, domain] = email.split("@");
   const encode = (text: string) => encodeURIComponent(text.replace(/\r?\n/g, "\r\n"));
   return `mailto:${encodeURIComponent(local)}@${encodeURIComponent(domain)}?subject=${encode(subject)}&body=${encode(body)}`;

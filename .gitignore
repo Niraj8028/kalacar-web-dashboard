@@ -14,3 +14,7 @@ dist/
 # Editor
 .DS_Store
 *.log
+
+# Tests
+/test-results/
+/playwright-report/

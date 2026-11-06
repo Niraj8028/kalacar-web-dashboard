@@ -8,7 +8,10 @@
     "build": "tsc -b && vite build",
     "start": "node server.cjs",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:browser": "playwright test",
+    "test:all": "vitest run && playwright test"
   },
   "dependencies": {
     "pusher-js": "8.6.0",
@@ -16,10 +19,12 @@
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.2.0",
     "typescript": "^5",
-    "vite": "^8.3.5"
+    "vite": "^8.3.5",
+    "vitest": "5.1.0"
   }
 }
