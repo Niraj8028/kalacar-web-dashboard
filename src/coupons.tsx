@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { DataTable, ModalDrawer, StatusChip } from "./dashboard-ui";
 import { useLiveRefresh } from "./live";
+import { useLiveRevision } from "./realtime";
 
 type CouponType = "percent" | "fixed";
 type CouponStatus = "active" | "scheduled" | "expired" | "used_up" | "reserved" | "off";
@@ -46,7 +47,7 @@ export function Coupons() {
       setCoupons(data.coupons); setError("");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Coupons are temporarily unavailable."); }
   }
-  useLiveRefresh(load, 30000, []);
+  useLiveRefresh(load, 5 * 60000, [useLiveRevision(true, "coupons", "orders")]);
 
   async function toggle(c: Coupon) {
     setToggling(c.id); setMessage("");

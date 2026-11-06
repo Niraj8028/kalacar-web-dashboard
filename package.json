@@ -11,6 +11,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "pusher-js": "8.6.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

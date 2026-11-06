@@ -8,6 +8,7 @@ import type { Category } from "./categories";
 import { Coupons } from "./coupons";
 import { useLiveRefresh } from "./live";
 import { useOrderChanges } from "./live";
+import { stopLive, useLiveRevision } from "./realtime";
 import { OrderAlertsPanel, useOrderAlerts } from "./order-alerts";
 import { removeThisDeviceFromAlerts } from "./push-alerts";
 import { PaymentStatusPanel } from "./payment-status";
@@ -81,7 +82,7 @@ export default function Dashboard() {
   const [authError, setAuthError] = useState("");
   const signedIn = authState === "ready";
   const [storeMode, setStoreMode] = useState<StoreVisibility["mode"] | "">("");
-  useEffect(() => { if (signedIn) void loadStoreSettings().then(store => setStoreMode(store.mode)).catch(() => undefined); }, [signedIn]);
+  
   const [shopLink, setShopLink] = useState("");
   useEffect(() => { if (signedIn) void loadShopLink().then(setShopLink).catch(() => undefined); }, [signedIn]);
   // The address bar holds the open tab, so refresh, Back and shared links all work.
@@ -98,6 +99,9 @@ export default function Dashboard() {
     return () => window.removeEventListener("popstate", onHistory);
   }, []);
   const ordersRevision = useOrderChanges(signedIn);
+  const productsRevision = useLiveRevision(signedIn, "products");
+  const storeRevision = useLiveRevision(signedIn, "store");
+  useEffect(() => { if (signedIn) void loadStoreSettings().then(store => setStoreMode(store.mode)).catch(() => undefined); }, [signedIn, storeRevision]);
   const { newCount, soundNeedsClick } = useOrderAlerts(signedIn, section === "Orders", ordersRevision);
   useEffect(() => { document.title = `${newCount ? `(${newCount}) ` : ""}${section} · Kalacar owner`; }, [section, newCount]);
   // An address that isn't a dashboard page shows Overview, so make the address say so too.
@@ -135,11 +139,10 @@ export default function Dashboard() {
   useEffect(() => {
     if (!signedIn) return;
     void refreshProducts();
-    if (section === "Products") return;
-    // Stock also changes with each order, through ordersRevision. This is the backstop.
-    const timer = window.setInterval(() => { if (!document.hidden) void refreshProducts(); }, 60000);
+    // Changes arrive through the revisions. This is the backstop for a missed signal.
+    const timer = window.setInterval(() => { if (!document.hidden) void refreshProducts(); }, 5 * 60000);
     return () => window.clearInterval(timer);
-  }, [section, signedIn, ordersRevision]);
+  }, [section, signedIn, ordersRevision, productsRevision]);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -166,6 +169,7 @@ export default function Dashboard() {
 
   async function signOut() {
     await removeThisDeviceFromAlerts();
+    stopLive();
     await fetch("/api/auth/logout?scope=owner", { method: "POST" }).catch(() => undefined);
     setOwner(null); setProfileOpen(false); setAuthState("signedOut");
   }
@@ -188,7 +192,7 @@ export default function Dashboard() {
     };
     void refreshOrders();
     // Changes arrive through ordersRevision. This is the backstop.
-    const timer = window.setInterval(() => { if (!document.hidden) void refreshOrders(); }, 60000);
+    const timer = window.setInterval(() => { if (!document.hidden) void refreshOrders(); }, 5 * 60000);
     return () => { active = false; window.clearInterval(timer); };
   }, [orderFilter, section, signedIn, ordersRevision]);
 
@@ -197,7 +201,7 @@ export default function Dashboard() {
     try { setMetrics(await loadAdminMetrics()); setMetricsError(""); }
     catch (error) { setMetrics(null); setMetricsError(error instanceof Error ? error.message : "Dashboard metrics are temporarily unavailable."); }
     finally { setMetricsLoading(false); }
-  }, 60000, [ordersRevision], signedIn);
+  }, 5 * 60000, [ordersRevision, productsRevision], signedIn);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useLiveRefresh } from "./live";
+import { useLiveRevision } from "./realtime";
 import { DataTable, ModalDrawer, StatusChip } from "./dashboard-ui";
 import { ChatIcon, CustomersIcon, MailIcon, PhoneIcon, RupeeIcon, SearchIcon, TrendIcon, OrdersIcon } from "./icons";
 
@@ -30,7 +31,7 @@ const filters: { key: Filter; label: string }[] = [{ key: "all", label: "All" },
 function GoogleMark() { return <span className="google-mark" title="Signs in with Google">Google</span>; }
 function OwnerMark() { return <span className="google-mark owner-mark" title="Your owner account: shown for your own test orders, not counted in the summary">Owner</span>; }
 const clock = (d: Date) => new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit", second: "2-digit" }).format(d);
-const LIVE_MS = 5000;
+const LIVE_MS = 5 * 60000;
 
 export function Customers({ onOpenOrder }: { onOpenOrder: (orderId: string) => void }) {
   const [customers, setCustomers] = useState<Customer[] | null>(null);
@@ -48,7 +49,7 @@ export function Customers({ onOpenOrder }: { onOpenOrder: (orderId: string) => v
       if (!response.ok || !data.customers) throw new Error(data.error || "Customers are temporarily unavailable.");
       setCustomers(data.customers); setError(""); setUpdatedAt(new Date());
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Customers are temporarily unavailable."); }
-  }, LIVE_MS, []);
+  }, LIVE_MS, [useLiveRevision(true, "orders")]);
 
   const all = useMemo(() => customers ?? [], [customers]);
   const real = all.filter(c => !c.isOwner);
@@ -113,7 +114,7 @@ function CustomerPanel({ id, onOpenOrder }: { id: string; onOpenOrder: (orderId:
       if (!response.ok || !data.customer) throw new Error(data.error || "Customer details are temporarily unavailable.");
       setDetail(data.customer); setError("");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Customer details are temporarily unavailable."); }
-  }, LIVE_MS, [id]);
+  }, LIVE_MS, [id, useLiveRevision(true, "orders")]);
   if (error && !detail) return <p role="alert" className="order-detail-error">{error}</p>;
   if (!detail) return <p role="status">Loading customer…</p>;
   const t = detail.totals;
