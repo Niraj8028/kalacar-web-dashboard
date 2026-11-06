@@ -46,7 +46,7 @@ export function HomeEditor({ products }: { products: ProductOption[] }) {
   return <div className="editor-stack">
     <SectionCard overline="TOP OF THE PAGE" title="Hero" show={hero.show} onShow={show => set("hero", { show })}>
       <ImageField label="Hero photo (used on phones, and on desktop if there's no wide photo)" value={hero.backgroundImage} onChange={backgroundImage => set("hero", { backgroundImage })} />
-      <ImageField label="Wide photo for desktop (recommended: landscape, with the murti to one side)" value={hero.desktopImage} onChange={desktopImage => set("hero", { desktopImage })} />
+      <ImageField label="Wide photo for desktop (optional: landscape, with the murti on the left, because the text sits on the right)" value={hero.desktopImage} onChange={desktopImage => set("hero", { desktopImage })} />
       <ToggleText label="Small line" show={hero.showEyebrow} onShow={showEyebrow => set("hero", { showEyebrow })} value={hero.eyebrow} onChange={eyebrow => set("hero", { eyebrow })} max={60} />
       <ToggleText label="Main title" show={hero.showTitle} onShow={showTitle => set("hero", { showTitle })} value={hero.title} onChange={title => set("hero", { title })} max={120} />
       <ToggleText label="Description" show={hero.showDescription} onShow={showDescription => set("hero", { showDescription })} value={hero.description} onChange={description => set("hero", { description })} max={300} rows={2} />
