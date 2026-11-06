@@ -7,6 +7,7 @@ import { CategoriesPanel, loadCategories } from "./categories";
 import type { Category } from "./categories";
 import { Coupons } from "./coupons";
 import { useLiveRefresh } from "./live";
+import { useOrderChanges } from "./live";
 import { OrderAlertsPanel, useOrderAlerts } from "./order-alerts";
 import { removeThisDeviceFromAlerts } from "./push-alerts";
 import { PaymentStatusPanel } from "./payment-status";
@@ -96,7 +97,8 @@ export default function Dashboard() {
     window.addEventListener("popstate", onHistory);
     return () => window.removeEventListener("popstate", onHistory);
   }, []);
-  const { newCount, soundNeedsClick } = useOrderAlerts(signedIn, section === "Orders");
+  const ordersRevision = useOrderChanges(signedIn);
+  const { newCount, soundNeedsClick } = useOrderAlerts(signedIn, section === "Orders", ordersRevision);
   useEffect(() => { document.title = `${newCount ? `(${newCount}) ` : ""}${section} · Kalacar owner`; }, [section, newCount]);
   // An address that isn't a dashboard page shows Overview, so make the address say so too.
   useEffect(() => { if (window.location.pathname !== routePath(route)) window.history.replaceState(null, "", routePath(route) + window.location.search); }, [route]);
@@ -109,6 +111,7 @@ export default function Dashboard() {
   const [orderFilter, setOrderFilter] = useState<OrderFilter>("all");
   const [orderCounts, setOrderCounts] = useState<OrderStatusCounts | null>(null);
   const [ordersLoading, setOrdersLoading] = useState(true);
+  const ordersListShown = useRef("");
   const [ordersError, setOrdersError] = useState("");
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
   const [metricsError, setMetricsError] = useState("");
@@ -133,9 +136,10 @@ export default function Dashboard() {
     if (!signedIn) return;
     void refreshProducts();
     if (section === "Products") return;
-    const timer = window.setInterval(() => void refreshProducts(), 2500);
+    // Stock also changes with each order, through ordersRevision. This is the backstop.
+    const timer = window.setInterval(() => { if (!document.hidden) void refreshProducts(); }, 60000);
     return () => window.clearInterval(timer);
-  }, [section, signedIn]);
+  }, [section, signedIn, ordersRevision]);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -169,29 +173,31 @@ export default function Dashboard() {
   useEffect(() => {
     if (!signedIn) return;
     let active = true;
-    setOrdersLoading(true);
-    setOrdersError("");
     const requestFilter = section === "Orders" ? orderFilter : "all";
+    // A background reload keeps what's on screen: no loading message, and a brief failure doesn't blank the list.
+    const background = ordersListShown.current === requestFilter;
+    if (!background) { setOrdersLoading(true); setOrdersError(""); }
     const refreshOrders = async () => {
       try {
         const response = await fetch(`/api/admin/orders?status=${requestFilter}`, { cache: "no-store" });
         const data = await response.json() as { orders?: Order[]; statusCounts?: OrderStatusCounts; error?: string };
         if (!response.ok) throw new Error(data.error || "Orders are temporarily unavailable.");
-        if (active) { setOrders(data.orders ?? []); setOrderCounts(data.statusCounts ?? null); setOrdersError(""); }
-      } catch (error) { if (active) { setOrders([]); setOrderCounts(null); setOrdersError(error instanceof Error ? error.message : "Orders are temporarily unavailable."); } }
+        if (active) { ordersListShown.current = requestFilter; setOrders(data.orders ?? []); setOrderCounts(data.statusCounts ?? null); setOrdersError(""); }
+      } catch (error) { if (active && ordersListShown.current !== requestFilter) { setOrders([]); setOrderCounts(null); setOrdersError(error instanceof Error ? error.message : "Orders are temporarily unavailable."); } }
       finally { if (active) setOrdersLoading(false); }
     };
     void refreshOrders();
-    const timer = window.setInterval(refreshOrders, 2500);
+    // Changes arrive through ordersRevision. This is the backstop.
+    const timer = window.setInterval(() => { if (!document.hidden) void refreshOrders(); }, 60000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [orderFilter, section, signedIn]);
+  }, [orderFilter, section, signedIn, ordersRevision]);
 
-  // Overview numbers and the inbox refresh live (every 5 s while the tab is open) so a new order shows without a reload.
+  // Overview numbers reload when an order changes, with a once-a-minute backstop while the tab is open.
   useLiveRefresh(async () => {
     try { setMetrics(await loadAdminMetrics()); setMetricsError(""); }
     catch (error) { setMetrics(null); setMetricsError(error instanceof Error ? error.message : "Dashboard metrics are temporarily unavailable."); }
     finally { setMetricsLoading(false); }
-  }, 5000, [], signedIn);
+  }, 60000, [ordersRevision], signedIn);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

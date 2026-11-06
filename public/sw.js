@@ -2,12 +2,16 @@
 self.addEventListener("push", event => {
   let message = {};
   try { message = event.data ? event.data.json() : {}; } catch { message = {}; }
-  event.waitUntil(self.registration.showNotification(message.title || "New Kalacar order", {
-    body: message.body || "Open the dashboard to see it.",
-    icon: "/favicon.svg",
-    tag: message.tag || "kalacar-order",
-    data: { path: message.path },
-  }));
+  event.waitUntil(Promise.all([
+    self.registration.showNotification(message.title || "New Kalacar order", {
+      body: message.body || "Open the dashboard to see it.",
+      icon: "/favicon.svg",
+      tag: message.tag || "kalacar-order",
+      data: { path: message.path },
+    }),
+    // Open dashboard tabs update at once instead of waiting for their next check.
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(open => open.forEach(client => client.postMessage({ type: "kalacar-orders-changed" }))),
+  ]));
 });
 
 self.addEventListener("notificationclick", event => {

@@ -46,7 +46,7 @@ export function Coupons() {
       setCoupons(data.coupons); setError("");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Coupons are temporarily unavailable."); }
   }
-  useLiveRefresh(load, 5000, []);
+  useLiveRefresh(load, 30000, []);
 
   async function toggle(c: Coupon) {
     setToggling(c.id); setMessage("");

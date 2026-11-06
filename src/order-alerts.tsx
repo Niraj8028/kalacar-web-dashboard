@@ -7,7 +7,6 @@ const SOUND_KEY = "kalacar_owner_order_sound";
 const PLAYED_KEY = "kalacar_owner_order_sound_played";
 const SOUND_EVENT = "kalacar-owner-order-sound";
 const CHANNEL = "kalacar_owner_orders";
-const POLL_MS = 10000;
 const PAID_LABELS = new Set(["Paid", "Paid after cancel"]);
 
 function readStorage(key: string) { try { return window.localStorage.getItem(key); } catch { return null; } }
@@ -52,17 +51,17 @@ async function chimeOnce(ids: string[]) {
 }
 
 /** Counts paid orders that arrive while the dashboard is open. Orders that already existed don't count. */
-export function useOrderAlerts(enabled: boolean, viewingOrders: boolean) {
+export function useOrderAlerts(enabled: boolean, viewingOrders: boolean, ordersRevision: number) {
   const [newIds, setNewIds] = useState<string[]>([]);
   const [soundOn, setSoundOn] = useState(soundIsOn);
   const [soundBlocked, setSoundBlocked] = useState(false);
   const viewing = useRef(viewingOrders);
   const channel = useRef<BroadcastChannel | null>(null);
 
+  const seen = useRef<Set<string> | null>(null);
   useEffect(() => {
-    if (!enabled) { setNewIds([]); return; }
+    if (!enabled) { setNewIds([]); seen.current = null; return; }
     let active = true;
-    let seen: Set<string> | null = null;
     const isViewing = () => viewing.current && !document.hidden;
     const poll = async () => {
       try {
@@ -71,18 +70,17 @@ export function useOrderAlerts(enabled: boolean, viewingOrders: boolean) {
         const data = await response.json() as { orders?: { id: string; status: string }[] };
         if (!active || !data.orders) return;
         const paid = data.orders.filter(order => PAID_LABELS.has(order.status)).map(order => order.id);
-        if (!seen) { seen = new Set(paid); return; }
-        const fresh = paid.filter(id => !seen?.has(id));
+        if (!seen.current) { seen.current = new Set(paid); return; }
+        const fresh = paid.filter(id => !seen.current?.has(id));
         if (!fresh.length) return;
-        fresh.forEach(id => seen?.add(id));
+        fresh.forEach(id => seen.current?.add(id));
         if (!isViewing()) setNewIds(current => [...current, ...fresh]);
         if (soundIsOn() && soundAllowed()) await chimeOnce(fresh);
       } catch { /* The next check tries again; Orders shows its own connection error. */ }
     };
     void poll();
-    const timer = window.setInterval(() => void poll(), POLL_MS);
-    return () => { active = false; window.clearInterval(timer); };
-  }, [enabled]);
+    return () => { active = false; };
+  }, [enabled, ordersRevision]);
 
   // Browsers keep a page silent until someone clicks or types on it.
   useEffect(() => {
