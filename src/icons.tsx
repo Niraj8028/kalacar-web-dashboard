@@ -13,6 +13,7 @@ export const SignOutIcon = (p: IconProps) => <Svg {...p}><path d="M14 4h4a1 1 0 
 export const SearchIcon = (p: IconProps) => <Svg {...p}><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></Svg>;
 export const ChevronDown = (p: IconProps) => <Svg {...p}><path d="m6 9 6 6 6-6" /></Svg>;
 export const CloseIcon = (p: IconProps) => <Svg {...p}><path d="M6 6l12 12M18 6 6 18" /></Svg>;
+export const ExternalLinkIcon = (p: IconProps) => <Svg {...p}><path d="M14 5h5v5M19 5l-8 8M17 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4" /></Svg>;
 export const ArrowRight = (p: IconProps) => <Svg {...p}><path d="M5 12h14M13 6l6 6-6 6" /></Svg>;
 export const EnterIcon = (p: IconProps) => <Svg {...p}><path d="M19 5v7a3 3 0 0 1-3 3H6M10 11l-4 4 4 4" /></Svg>;
 export const CheckIcon = (p: IconProps) => <Svg {...p}><path d="m5 12.5 4.5 4.5L19 7.5" /></Svg>;
