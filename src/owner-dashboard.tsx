@@ -16,6 +16,7 @@ import { PaymentStatusPanel } from "./payment-status";
 import { SettingsTabs } from "./settings-tabs";
 import { ProductPageSettingsPanel } from "./product-page-settings";
 import { ReviewsSection } from "./reviews-section";
+import { InstagramPanel } from "./instagram-settings";
 import { ShopLinkPanel, VisitWebsiteLink, loadShopLink } from "./shop-link";
 import { StoreVisibilityPanel, loadStoreSettings } from "./store-visibility";
 import type { StoreSettings as StoreVisibility } from "./store-visibility";
@@ -892,9 +893,10 @@ function StoreSettings({ onStoreSaved, onShopLinkSaved }: { onStoreSaved: (store
   return <>
     <div className="page-heading"><div><p className="overline">STORE</p><h1>Settings</h1><p className="muted">Choose what you want to change.</p></div></div>
     <SettingsTabs tabs={[
-      { key: "shop", label: "Shop", contains: "Open or closed, banner, website link", content: <>
+      { key: "shop", label: "Shop", contains: "Open or closed, banner, website link, Instagram", content: <>
         <StoreVisibilityPanel onSaved={onStoreSaved} />
         <ShopLinkPanel onSaved={onShopLinkSaved} />
+        <InstagramPanel />
       </> },
       { key: "products", label: "Products", contains: "Categories, product page content, real activity", content: <>
         <CategoriesPanel />

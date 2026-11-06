@@ -88,8 +88,6 @@ export function HomeEditor({ products }: { products: ProductOption[] }) {
       {heading("reviews")}
       <Check label="Show written reviews" checked={reviews.showText} onChange={showText => set("reviews", { showText })} />
       <Check label="Show video reviews" checked={reviews.showVideo} onChange={showVideo => set("reviews", { showVideo })} />
-      <ToggleText label="Follow button" show={reviews.follow.show} onShow={show => set("reviews", { follow: { ...reviews.follow, show } })} value={reviews.follow.label} onChange={label => set("reviews", { follow: { ...reviews.follow, label } })} max={60} />
-      <TextField label="Follow button link" value={reviews.follow.url} max={300} placeholder="https://www.instagram.com/yourpage" onChange={url => set("reviews", { follow: { ...reviews.follow, url } })} />
       <p className="muted">Add reviews in the Reviews section and tick "Show on home page". Video covers come from the video automatically.</p>
     </SectionCard>
     <SectionCard overline="ABOUT" title="Our Story" show={story.show} onShow={show => set("story", { show })}>

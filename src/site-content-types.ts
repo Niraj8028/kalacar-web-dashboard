@@ -5,7 +5,7 @@ export type HomeContent = {
   comingSoon: { show: boolean; showTitle: boolean; title: string; showDescription: boolean; description: string; items: { name: string; image: string }[] };
   collections: { show: boolean; showTitle: boolean; title: string; showDescription: boolean; description: string };
   why: { show: boolean; showTitle: boolean; title: string; showDescription: boolean; description: string; items: { title: string; text: string }[] };
-  reviews: { show: boolean; showTitle: boolean; title: string; showDescription: boolean; description: string; showText: boolean; showVideo: boolean; follow: { show: boolean; label: string; url: string } };
+  reviews: { show: boolean; showTitle: boolean; title: string; showDescription: boolean; description: string; showText: boolean; showVideo: boolean };
   story: { show: boolean; showTitle: boolean; title: string; showText: boolean; text: string; showImage: boolean; image: string; showFounder: boolean; founder: string };
 };
 export type ProductPageContent = {
