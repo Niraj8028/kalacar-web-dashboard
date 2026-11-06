@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { StatusChip } from "./dashboard-ui";
+import { PushAlertsSection } from "./push-alerts";
 
 // New-order sound and count for the owner dashboard. Everything here stays in this browser.
 const SOUND_KEY = "kalacar_owner_order_sound";
@@ -137,5 +138,6 @@ export function OrderAlertsPanel() {
     <p className="muted">While the dashboard is open, each new paid order plays a sound and adds to the count on the browser tab and the Orders menu. Opening Orders clears the count.</p>
     <label className="toggle-row"><input type="checkbox" checked={soundOn} onChange={event => change(event.target.checked)} /><span><b>Play a sound for new paid orders</b><small>Saved for this browser only. Keep the tab open and your device's sound on.</small></span></label>
     <div className="settings-actions"><button className="secondary" type="button" onClick={() => void test()}>Play test sound</button></div>
+    <PushAlertsSection />
   </section>;
 }

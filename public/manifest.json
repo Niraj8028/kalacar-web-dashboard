@@ -1,0 +1,1 @@
+{ "name": "Kalacar owner dashboard", "short_name": "Kalacar", "start_url": "/orders", "display": "standalone", "background_color": "#f8f7f4", "theme_color": "#1d2327", "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }] }

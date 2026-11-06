@@ -268,3 +268,5 @@ footer{margin-top:8px;font-size:12px;color:var(--muted)}
 /* Link from the dashboard to the customer website */
 .visit-website{display:inline-flex;align-items:center;gap:4px;padding:0;border:0;background:none;color:#aaa69b;font:600 12px 'DM Sans',sans-serif;text-decoration:none;cursor:pointer}.visit-website:hover{text-decoration:underline}.visit-website:focus-visible{outline:2px solid #d38b67;outline-offset:2px}
 .sidebar .brand{padding-bottom:2px}.sidebar .brand-mark{margin-bottom:0}.sidebar>.visit-website{display:flex;width:max-content;min-height:24px;margin:4px 0 30px 60px;color:#d0d5d8}.mobile-brand>span:nth-child(2){display:grid;gap:2px;line-height:1.2}.mobile-brand .visit-website{color:#6b6a60;min-height:24px}
+/* Settings: pop-up alerts */
+.push-alerts{display:grid;gap:10px;padding-top:12px;border-top:1px solid #eceae4}.push-alerts-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.push-alerts-head b{display:block;font-size:14px}.push-alerts-head small{display:block;margin-top:2px;color:#77756c;font-size:12px}.push-alerts .muted{margin:0}

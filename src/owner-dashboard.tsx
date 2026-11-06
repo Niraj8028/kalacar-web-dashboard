@@ -8,6 +8,7 @@ import type { Category } from "./categories";
 import { Coupons } from "./coupons";
 import { useLiveRefresh } from "./live";
 import { OrderAlertsPanel, useOrderAlerts } from "./order-alerts";
+import { removeThisDeviceFromAlerts } from "./push-alerts";
 import { PaymentStatusPanel } from "./payment-status";
 import { ShopLinkPanel, VisitWebsiteLink, loadShopLink } from "./shop-link";
 import { StoreVisibilityPanel, loadStoreSettings } from "./store-visibility";
@@ -160,6 +161,7 @@ export default function Dashboard() {
   }, []);
 
   async function signOut() {
+    await removeThisDeviceFromAlerts();
     await fetch("/api/auth/logout?scope=owner", { method: "POST" }).catch(() => undefined);
     setOwner(null); setProfileOpen(false); setAuthState("signedOut");
   }
