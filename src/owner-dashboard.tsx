@@ -894,7 +894,7 @@ function StoreSettings({ onStoreSaved, onShopLinkSaved }: { onStoreSaved: (store
   return <>
     <div className="page-heading"><div><p className="overline">STORE</p><h1>Settings</h1><p className="muted">Choose what you want to change.</p></div></div>
     <SettingsTabs tabs={[
-      { key: "shop", label: "Shop", contains: "Open or closed, banner, website link, Instagram, Diwali", content: <>
+      { key: "shop", label: "Shop", contains: "Open or closed, banner, website link, Instagram, festival decoration", content: <>
         <StoreVisibilityPanel onSaved={onStoreSaved} />
         <ShopLinkPanel onSaved={onShopLinkSaved} />
         <InstagramPanel />

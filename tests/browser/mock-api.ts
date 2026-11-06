@@ -63,7 +63,7 @@ export async function mockApi(page: Page, over: Partial<ApiState> = {}) {
       }
       return json(route, body);
     }
-    if (path === "/api/admin/settings") return json(route, { giftWrap: { enabled: false, price: 49, title: "Gift-ready packaging", description: "" }, store: { mode: "live", comingSoonMessage: "", announcementEnabled: false, announcementText: "" }, shopLink: state.shopLink, instagram: state.instagram, festive: { diwali: false } });
+    if (path === "/api/admin/settings") return json(route, { giftWrap: { enabled: false, price: 49, title: "Gift-ready packaging", description: "" }, store: { mode: "live", comingSoonMessage: "", announcementEnabled: false, announcementText: "" }, shopLink: state.shopLink, instagram: state.instagram, festive: { overlay: "off" } });
     return json(route, { error: `Not expected in this test: ${path}` }, 500);
   });
   return state;
