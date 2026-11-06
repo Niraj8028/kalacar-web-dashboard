@@ -22,6 +22,7 @@ export const TrendIcon = (p: IconProps) => <Svg {...p}><path d="M4 16l5-5 4 4 7-
 export const PackageIcon = (p: IconProps) => <Svg {...p}><path d="M4 8.5 12 4l8 4.5v7L12 20l-8-4.5z M4 8.5 12 13l8-4.5M12 13v7" /></Svg>;
 
 export const sectionIcons = { Overview: HomeIcon, Orders: OrdersIcon, Products: ProductIcon, Customers: CustomersIcon, Coupons: CouponIcon, Settings: SettingsIcon } as const;
+export const SmsIcon = (p: IconProps) => <Svg {...p}><path d="M4 5.5h16v11H9.5L5.5 20v-3.5H4Z" /><path d="M8 9.5h8M8 12.5h5" /></Svg>;
 export const MailIcon = (p: IconProps) => <Svg {...p}><rect x="3.5" y="5.5" width="17" height="13" rx="1.5" /><path d="m4 7 8 6 8-6" /></Svg>;
 export const PhoneIcon = (p: IconProps) => <Svg {...p}><path d="M6.5 4h3l1.5 4-2 1.3a10 10 0 0 0 5.2 5.2L15.5 12l4 1.5v3a1.5 1.5 0 0 1-1.6 1.5A14.5 14.5 0 0 1 5 5.6 1.5 1.5 0 0 1 6.5 4Z" /></Svg>;
 export const ChatIcon = (p: IconProps) => <Svg {...p}><path d="M5 18.5 6 15a7 7 0 1 1 3 2.6z" /><path d="M9.5 9.5c.3 2 1.9 3.6 3.9 4l1.1-1.1 1.5.6" /></Svg>;

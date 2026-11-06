@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
-import { ChatIcon, MailIcon } from "./icons";
+import { ChatIcon, MailIcon, PhoneIcon, SmsIcon } from "./icons";
 
-export type MessageTemplate = { whatsapp: string; emailSubject: string; emailBody: string };
+export type MessageTemplate = { whatsapp: string; sms: string; emailSubject: string; emailBody: string };
 type Templates = Record<string, MessageTemplate>;
 type Variable = { key: string; label: string };
 export type MessageConfig = { templates: Templates; defaults: Templates; variables: Variable[] };
@@ -65,10 +65,10 @@ function mailLink(email: string, subject: string, body: string) {
 
 const missingNote = (missing: string[]) => `Add the ${missing.join(" and ")} first, or remove ${missing.length > 1 ? "them" : "it"} from this template in Settings.`;
 
-/** Opens WhatsApp or the mail app with the message filled in; the owner presses Send there. Never changes the order. */
+/** Opens WhatsApp, the SMS app or the mail app with the message filled in, or starts a call; the owner presses Send or Call there. Never changes the order. */
 export function MessageButtons({ order, status, unsaved, config, configError, showCopy = false }: { order: MessageOrder; status: string; unsaved: boolean; config: MessageConfig | null; configError: string; showCopy?: boolean }) {
   const [notice, setNotice] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"" | "sms" | "email">("");
   const template = config?.templates[status];
   const values = orderValues(order, status);
   const labels = config?.variables ?? [];
@@ -77,6 +77,9 @@ export function MessageButtons({ order, status, unsaved, config, configError, sh
   const whatsapp = fill(template?.whatsapp ?? "", values, labels);
   const number = whatsappNumber(order.phone);
   const whatsappBlock = shared || (!template?.whatsapp ? `There's no WhatsApp message for ${statusLabel(status)}. Add one in Settings.` : !number ? "This order has no valid phone number." : whatsapp.missing.length ? missingNote(whatsapp.missing) : "");
+
+  const sms = fill(template?.sms ?? "", values, labels);
+  const smsContentBlock = shared || (!template?.sms ? `There's no SMS message for ${statusLabel(status)}. Add one in Settings.` : !number ? "This order has no valid phone number." : sms.missing.length ? missingNote(sms.missing) : "");
 
   const subject = fill(template?.emailSubject ?? "", values, labels);
   const body = fill(template?.emailBody ?? "", values, labels);
@@ -87,8 +90,8 @@ export function MessageButtons({ order, status, unsaved, config, configError, sh
   const contentBlock = shared || (!template?.emailBody ? `There's no email message for ${statusLabel(status)}. Add one in Settings.` : !emailValid ? "This order has no valid email address." : emailMissing.length ? missingNote(emailMissing) : "");
   const emailBlock = contentBlock || (mailto.length > MAX_EMAIL_LINK ? `This email is too long for the mail app to open. ${showCopy ? "Use Copy email" : "Use Copy email in View details"}, or shorten it in Settings.` : "");
 
-  async function copy() {
-    try { await navigator.clipboard.writeText(`To: ${email}\nSubject: ${subject.text}\n\n${body.text}`); setCopied(true); setNotice(""); window.setTimeout(() => setCopied(false), 2500); }
+  async function copy(kind: "sms" | "email") {
+    try { await navigator.clipboard.writeText(kind === "sms" ? sms.text : `To: ${email}\nSubject: ${subject.text}\n\n${body.text}`); setCopied(kind); setNotice(""); window.setTimeout(() => setCopied(""), 2500); }
     catch { setNotice("Couldn't copy. Select the text in Settings instead."); }
   }
   const blocked = (label: string, icon: ReactNode, reason: string) => <button className="message-button blocked" type="button" aria-disabled="true" title={reason} onClick={() => setNotice(reason)}>{icon}{label}</button>;
@@ -97,7 +100,10 @@ export function MessageButtons({ order, status, unsaved, config, configError, sh
     <div className="message-row">
       {whatsappBlock ? blocked("WhatsApp", <ChatIcon size={15} />, whatsappBlock) : <a className="message-button whatsapp" href={`https://wa.me/${number}?text=${encodeURIComponent(whatsapp.text)}`} target="_blank" rel="noreferrer" onClick={() => setNotice("")}><ChatIcon size={15} />WhatsApp</a>}
       {emailBlock ? blocked("Email", <MailIcon size={15} />, emailBlock) : <a className="message-button" href={mailto} onClick={() => setNotice("")}><MailIcon size={15} />Email</a>}
-      {showCopy && !contentBlock && <button className="text-button" type="button" onClick={() => void copy()}>{copied ? "Copied" : "Copy email"}</button>}
+      {smsContentBlock ? blocked("SMS", <SmsIcon size={15} />, smsContentBlock) : <a className="message-button" href={`sms:+${number}?&body=${encodeURIComponent(sms.text)}`} onClick={() => setNotice("")}><SmsIcon size={15} />SMS</a>}
+      {number ? <a className="message-button" href={`tel:+${number}`} onClick={() => setNotice("")}><PhoneIcon size={15} />Call</a> : blocked("Call", <PhoneIcon size={15} />, "This order has no valid phone number.")}
+      {showCopy && !contentBlock && <button className="text-button" type="button" onClick={() => void copy("email")}>{copied === "email" ? "Copied" : "Copy email"}</button>}
+      {showCopy && !smsContentBlock && <button className="text-button" type="button" onClick={() => void copy("sms")}>{copied === "sms" ? "Copied" : "Copy SMS"}</button>}
     </div>
     {notice && <small className="fulfillment-note" role="status">{notice}</small>}
   </div>;
@@ -106,6 +112,7 @@ export function MessageButtons({ order, status, unsaved, config, configError, sh
 type FieldKey = keyof MessageTemplate;
 const FIELDS: { key: FieldKey; label: string; rows: number; max: number }[] = [
   { key: "whatsapp", label: "WhatsApp message", rows: 4, max: 1000 },
+  { key: "sms", label: "SMS message", rows: 3, max: 320 },
   { key: "emailSubject", label: "Email subject", rows: 0, max: 150 },
   { key: "emailBody", label: "Email message", rows: 7, max: 1500 },
 ];
@@ -153,6 +160,7 @@ function TemplateEditor({ status, saved, defaults, variables, hidden, onSaved, o
     </label>)}
     <div className="settings-preview template-preview" aria-label="Preview with sample details"><span className="overline">PREVIEW WITH SAMPLE DETAILS</span>
       <p><b>WhatsApp</b>{preview("whatsapp") || "No message"}</p>
+      <p><b>SMS</b>{preview("sms") || "No message"}</p>
       <p><b>Email · {preview("emailSubject") || "No subject"}</b>{preview("emailBody") || "No message"}</p>
     </div>
     {error && <p className="order-detail-error" role="alert">{error}</p>}
@@ -174,7 +182,7 @@ export function MessageTemplatesPanel() {
   const templates = saved ?? config?.templates;
   return <section className="panel settings-card" aria-labelledby="templates-title">
     <div className="panel-head"><div><p className="overline">ORDER UPDATES</p><h2 id="templates-title">Customer message templates</h2></div></div>
-    <p className="muted">These fill in the WhatsApp and Email buttons on Orders for each delivery status. You check the message and press Send in WhatsApp or your mail app.</p>
+    <p className="muted">These fill in the WhatsApp, SMS and Email buttons on Orders for each delivery status. You check the message and press Send in that app.</p>
     {error && <p className="order-detail-error" role="alert">{error}</p>}
     {!config || !templates ? !error && <p className="muted">Loading templates…</p> : <>
       <div className="template-variables" role="group" aria-label="Choose a status">{STATUSES.map(([status, label]) => <button className={`template-chip${active === status ? " active" : ""}`} type="button" aria-pressed={active === status} key={status} onClick={() => setActive(status)}>{label}{dirty[status] ? " · unsaved" : ""}</button>)}</div>
