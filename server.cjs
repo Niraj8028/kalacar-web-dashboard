@@ -31,7 +31,7 @@ async function toShop(req, res) {
 }
 
 function sendFile(res, file, cache) {
-  res.writeHead(200, { "Content-Type": TYPES[path.extname(file).toLowerCase()] || "application/octet-stream", "Cache-Control": cache, "X-Content-Type-Options": "nosniff", "Referrer-Policy": "same-origin", "X-Robots-Tag": "noindex" });
+  res.writeHead(200, { "Content-Type": TYPES[path.extname(file).toLowerCase()] || "application/octet-stream", "Cache-Control": cache, "X-Content-Type-Options": "nosniff", "Referrer-Policy": "same-origin", "X-Robots-Tag": "noindex", "X-Frame-Options": "DENY", "Strict-Transport-Security": "max-age=31536000" });
   fs.createReadStream(file).pipe(res);
 }
 
@@ -41,6 +41,8 @@ function page(req, res) {
   const file = path.join(DIST, pathname);
   const inside = file.startsWith(DIST + path.sep);
   if (inside && fs.statSync(file, { throwIfNoEntry: false })?.isFile()) return sendFile(res, file, pathname.startsWith("/assets/") ? "public, max-age=31536000, immutable" : "no-cache");
+  // A file from an older build: answer 404, not the app page, so an open tab doesn't go blank after a deploy.
+  if (pathname.startsWith("/assets/")) { res.writeHead(404, { "Content-Type": "text/plain", "Cache-Control": "no-store" }).end("Not found"); return; }
   sendFile(res, path.join(DIST, "index.html"), "no-cache");
 }
 
