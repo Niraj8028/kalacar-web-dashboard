@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { expectFits, mockApi, order, watchErrors } from "./mock-api";
+import { expectFits, HOME, mockApi, OLD_HERO, order, watchErrors } from "./mock-api";
 
 test.describe("every dashboard page opens and fits", () => {
   for (const [path, heading] of [["/", "Overview"], ["/orders", "Orders"], ["/products", "Products"], ["/customers", "Customers"], ["/coupons", "Coupons"], ["/pages", "Pages"], ["/reviews", "Reviews"], ["/inquiries", "Inquiries"], ["/settings", "Settings"]] as const) {
@@ -155,8 +155,39 @@ test.describe("Pages section", () => {
     await hero.getByRole("checkbox", { name: "Show description" }).uncheck();
     await page.getByRole("button", { name: "Save home page" }).click();
     await expect(page.getByText("Saved. The home page is updated.")).toBeVisible();
-    expect(state.saved[0]).toMatchObject({ home: { hero: { title: "New hero title", showDescription: false } } });
+    expect(state.saved[0]).toMatchObject({ home: { hero: { show: true, slides: [{ title: "New hero title", showDescription: false }] } } });
     await expectFits(page);
+  });
+  test("hero slides: add, reorder, remove, timer settings", async ({ page }) => {
+    const state = await mockApi(page);
+    await page.goto("/pages");
+    const hero = page.locator("section", { has: page.getByRole("heading", { name: "Hero", exact: true }) });
+    await hero.getByRole("button", { name: "+ Add slide" }).click();
+    const second = hero.locator(".hero-slide-editor").nth(1);
+    await second.getByRole("textbox", { name: "Main title" }).fill("Second title");
+    await second.getByRole("button", { name: "Move up" }).click();
+    await expect(hero.locator(".hero-slide-editor legend").first()).toHaveText("Slide 1 · Second title");
+    await hero.getByRole("spinbutton", { name: "Seconds per slide" }).fill("8");
+    await page.getByRole("button", { name: "Save home page" }).click();
+    await expect(page.getByText("Saved. The home page is updated.")).toBeVisible();
+    expect(state.saved[0]).toMatchObject({ home: { hero: { autoplay: true, interval: 8, slides: [{ title: "Second title" }, { title: "Hero title" }] } } });
+    page.once("dialog", dialog => void dialog.accept());
+    await hero.locator(".hero-slide-editor").nth(0).getByRole("button", { name: "Remove slide" }).click();
+    await expect(hero.locator(".hero-slide-editor")).toHaveCount(1);
+    await expect(hero.locator(".hero-slide-editor").getByRole("button", { name: "Remove slide" })).toBeDisabled();
+    await hero.getByRole("checkbox", { name: /Change slides automatically/ }).uncheck();
+    await expect(hero.getByRole("spinbutton", { name: "Seconds per slide" })).toHaveCount(0);
+    await expectFits(page);
+  });
+  test("a shop still on the old single hero opens as one slide and saves as slides", async ({ page }) => {
+    const state = await mockApi(page, { home: { ...HOME, hero: OLD_HERO } });
+    await page.goto("/pages");
+    const hero = page.locator("section", { has: page.getByRole("heading", { name: "Hero", exact: true }) });
+    await expect(hero.locator(".hero-slide-editor")).toHaveCount(1);
+    await expect(hero.getByRole("textbox", { name: "Main title" })).toHaveValue("Hero title");
+    await hero.getByRole("textbox", { name: "Main title" }).fill("Changed");
+    await page.getByRole("button", { name: "Save home page" }).click();
+    expect(state.saved[0]).toMatchObject({ home: { hero: { show: true, slides: [{ title: "Changed" }] } } });
   });
   test("a hidden section stays hidden but keeps its text", async ({ page }) => {
     await mockApi(page);
