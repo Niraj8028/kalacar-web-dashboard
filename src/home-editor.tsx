@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { errorText, getJson, sendJson } from "./admin-api";
 import type { Category } from "./categories";
 import { Check, ImageField, SaveBar, SectionCard, TextField, ToggleText } from "./editor-fields";
-import { MAX_HERO_SLIDES, NEW_HERO_SLIDE } from "./site-content-types";
+import { DEFAULT_SPOTLIGHT, MAX_HERO_SLIDES, NEW_HERO_SLIDE } from "./site-content-types";
 import type { HeroSlide, HomeContent, ProductOption } from "./site-content-types";
 
 function ProductPicker({ label, options, chosen, onChange, max }: { label: string; options: ProductOption[]; chosen: string[]; onChange: (ids: string[]) => void; max: number }) {
@@ -17,7 +17,8 @@ function CategoryImage({ category, onChanged }: { category: Category; onChanged:
 }
 
 /** A shop still on the old single-hero shape: show it as one slide. */
-function withSlides(home: HomeContent): HomeContent {
+function withSlides(input: HomeContent): HomeContent {
+  const home = { ...input, spotlight: { ...DEFAULT_SPOTLIGHT, ...input.spotlight, whatsapp: { ...DEFAULT_SPOTLIGHT.whatsapp, ...input.spotlight?.whatsapp } } };
   const hero = home.hero as HomeContent["hero"] & Partial<HeroSlide>;
   if (Array.isArray(hero.slides)) return home;
   const { show, ...slide } = hero as unknown as HeroSlide & { show: boolean };
@@ -62,7 +63,7 @@ export function HomeEditor({ products }: { products: ProductOption[] }) {
   const dirty = useMemo(() => JSON.stringify(saved) !== JSON.stringify(draft), [saved, draft]);
   if (!draft || !saved) return error ? <p className="order-detail-error" role="alert">{error}</p> : <p className="muted">Loading the home page…</p>;
   const set = <K extends keyof HomeContent>(key: K, change: Partial<HomeContent[K]>) => { setDraft(current => current && { ...current, [key]: { ...current[key], ...change } }); setMessage(""); };
-  const { hero, firstLaunch, comingSoon, collections, why, reviews, story } = draft;
+  const { hero, spotlight, firstLaunch, comingSoon, collections, why, reviews, story } = draft;
   const setSlides = (slides: HeroSlide[]) => set("hero", { slides });
   async function save() {
     setBusy(true); setError(""); setMessage("");
@@ -84,6 +85,15 @@ export function HomeEditor({ products }: { products: ProductOption[] }) {
         onMove={step => { const next = [...hero.slides]; [next[index], next[index + step]] = [next[index + step], next[index]]; setSlides(next); }}
         onRemove={() => setSlides(hero.slides.filter((_, i) => i !== index))} />)}
       {hero.slides.length < MAX_HERO_SLIDES && <button className="secondary" type="button" onClick={() => setSlides([...hero.slides, { ...NEW_HERO_SLIDE }])}>+ Add slide</button>}
+    </SectionCard>
+    <SectionCard overline="BELOW THE HERO" title="Product spotlight" show={spotlight.show} onShow={show => set("spotlight", { show })}>
+      <p className="muted">One featured murti. Its name, badge, tagline, price, rating and stock come from the product itself, so they stay correct.</p>
+      <ToggleText label="Heading" show={spotlight.showTitle} onShow={showTitle => set("spotlight", { showTitle })} value={spotlight.title} onChange={title => set("spotlight", { title })} max={120} placeholder="Bring home the divine" />
+      <ToggleText label="Subheading" show={spotlight.showDescription} onShow={showDescription => set("spotlight", { showDescription })} value={spotlight.description} onChange={description => set("spotlight", { description })} max={200} placeholder="Experience the joy of Cute Shri Krishna" />
+      <label className="editor-field">Product<select value={spotlight.productId} onChange={event => set("spotlight", { productId: event.target.value })}><option value="">Choose a product (the section stays hidden without one)</option>{products.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
+      <ImageField label="Photo (one image; a collage made as a single PNG works too). Empty uses the product's main photo." value={spotlight.image} onChange={image => set("spotlight", { image })} />
+      <Check label="Show the shop logo" checked={spotlight.showLogo} onChange={showLogo => set("spotlight", { showLogo })} />
+      <ToggleText label="WhatsApp button" show={spotlight.whatsapp.show} onShow={show => set("spotlight", { whatsapp: { ...spotlight.whatsapp, show } })} value={spotlight.whatsapp.label} onChange={label => set("spotlight", { whatsapp: { ...spotlight.whatsapp, label } })} max={40} />
     </SectionCard>
     <SectionCard overline="PRODUCTS" title="First launch grid" show={firstLaunch.show} onShow={show => set("firstLaunch", { show })}>
       {heading("firstLaunch")}
