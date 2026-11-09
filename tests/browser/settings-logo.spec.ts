@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { expectFits, mockApi, watchErrors } from "./mock-api";
+import { expectFits, logoState, mockApi, watchErrors } from "./mock-api";
+import type { ApiState, LogoState } from "./mock-api";
+
+const withBrand = (brand: Partial<LogoState["brand"]>) => ({ brand } as unknown as Partial<ApiState>);
 
 // A 1×1 PNG, small enough to upload unchanged.
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
@@ -21,12 +24,12 @@ test.describe("Settings > Logo", () => {
     await expect(card.getByText(/Phones show it at 70% of this width \(154px\)/)).toBeVisible();
     await card.getByRole("button", { name: "Save" }).click();
     await expect(card.getByText(/Saved\. The shop shows the new logo now/)).toBeVisible();
-    expect(state.brand).toEqual({ logo: "/uploads/site-test-1.png", width: 220, white: false });
+    expect(logoState(state).brand).toEqual({ logo: "/uploads/site-test-1.png", width: 220, white: false });
     await expectFits(page);
     expect(errors).toEqual([]);
   });
   test("white option and back to the default size", async ({ page }) => {
-    const state = await mockApi(page, { brand: { logo: "/uploads/old.png", width: 180, white: false } });
+    const state = await mockApi(page, withBrand({ logo: "/uploads/old.png", width: 180, white: false }));
     await page.goto("/settings");
     const card = page.locator("section", { has: page.getByRole("heading", { name: "Logo", exact: true }) });
     await card.getByRole("checkbox", { name: /Show the logo in white/ }).check();
@@ -35,10 +38,10 @@ test.describe("Settings > Logo", () => {
     await expect(card.getByText(/\(default\)/)).toBeVisible();
     await card.getByRole("button", { name: "Save" }).click();
     await expect(card.getByText(/Saved/)).toBeVisible();
-    expect(state.brand).toEqual({ logo: "/uploads/old.png", width: 0, white: true });
+    expect(logoState(state).brand).toEqual({ logo: "/uploads/old.png", width: 0, white: true });
   });
   test("an older shop that sends only the logo still loads", async ({ page }) => {
-    await mockApi(page, { brand: { logo: "/uploads/old.png" } as never });
+    await mockApi(page, withBrand({ logo: "/uploads/old.png" }));
     await page.goto("/settings");
     const card = page.locator("section", { has: page.getByRole("heading", { name: "Logo", exact: true }) });
     await expect(card.getByText(/Logo width on computers: 150px \(default\)/)).toBeVisible();

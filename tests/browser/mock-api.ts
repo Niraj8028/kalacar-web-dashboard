@@ -14,12 +14,12 @@ const PAGES = [{ slug: "about", title: "About Kalacar", intro: "Intro", content:
 
 export type ApiState = { instagram: { show: boolean; username: string };  saved: object[]; reviews: object[]; inquiries: object[];  orders: ReturnType<typeof order>[]; stamp: string; realtime: { key: string | null; cluster: string | null }; calls: Record<string, number>; shopLink: string; failing: Set<string>; payment: object };
 
-export async function mockApi(page: Page, over: Partial<ApiState & LogoState> = {}) {
-  const state: ApiState & LogoState = {
+export async function mockApi(page: Page, over: Partial<ApiState> = {}) {
+  const state: ApiState = {
     saved: [], reviews: [], inquiries: [],
     orders: [order("aaaaaaaa-1", "Paid Buyer", "Paid"), order("bbbbbbbb-2", "No Phone", "Paid", { phone: "", fulfillmentStatus: "processing" }), order("cccccccc-3", "Waiting Buyer", "Awaiting payment")],
     stamp: "1", realtime: { key: null, cluster: null }, calls: {}, shopLink: "http://localhost:3000/", instagram: { show: false, username: "" }, failing: new Set(),
-    payment: { mode: "test", secretSet: true, checkoutOpen: true, webhookSet: false }, brand: { logo: "", width: 0, white: false }, uploads: 0, ...over,
+    payment: { mode: "test", secretSet: true, checkoutOpen: true, webhookSet: false }, ...over,
   };
   const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
   const products = [product("krushna", "Test Krushna", "Krishna", [colour("gold", "Gold", 5), colour("white", "White", 0), colour("rose", "Rose", 0, false)]), product("ganesh", "Test Ganesh", "Ganesh", [colour("plain", "Plain", 2)]), product("soldout", "Test Soldout", "Shiva", [colour("black", "Black", 0)])];
@@ -49,10 +49,10 @@ export async function mockApi(page: Page, over: Partial<ApiState & LogoState> = 
     if (path === "/api/admin/reviews") return json(route, { reviews: state.reviews });
     if (path === "/api/admin/inquiries") return json(route, { inquiries: state.inquiries });
     if (path.startsWith("/api/admin/inquiries/") && request.method() === "PATCH") return json(route, { ok: true });
-    if (path === "/api/admin/uploads" && request.method() === "POST") { state.uploads += 1; return json(route, { url: `/uploads/site-test-${state.uploads}.png` }); }
+    if (path === "/api/admin/uploads" && request.method() === "POST") { const logo = logoState(state); logo.uploads += 1; return json(route, { url: `/uploads/site-test-${logo.uploads}.png` }); }
     if (path === "/api/admin/settings" && request.method() === "PATCH") {
       const body = request.postDataJSON() as { shopLink?: string; instagram?: { show: boolean; username: string }; brand?: LogoState["brand"] };
-      if (body.brand) { state.brand = body.brand; return json(route, { brand: state.brand }); }
+      if (body.brand) { logoState(state).brand = body.brand; return json(route, { brand: body.brand }); }
       if (body.instagram) {
         if (/[^\w.@]/.test(body.instagram.username)) return json(route, { error: "Enter a valid Instagram username, like kalacar.in" }, 400);
         state.instagram = { show: body.instagram.show, username: body.instagram.username.replace(/^@/, "") };
@@ -65,7 +65,7 @@ export async function mockApi(page: Page, over: Partial<ApiState & LogoState> = 
       }
       return json(route, body);
     }
-    if (path === "/api/admin/settings") return json(route, { giftWrap: { enabled: false, price: 49, title: "Gift-ready packaging", description: "" }, store: { mode: "live", comingSoonMessage: "", announcementEnabled: false, announcementText: "" }, shopLink: state.shopLink, instagram: state.instagram, brand: state.brand, festive: { overlay: "off" } });
+    if (path === "/api/admin/settings") return json(route, { giftWrap: { enabled: false, price: 49, title: "Gift-ready packaging", description: "" }, store: { mode: "live", comingSoonMessage: "", announcementEnabled: false, announcementText: "" }, shopLink: state.shopLink, instagram: state.instagram, brand: logoState(state).brand, festive: { overlay: "off" } });
     return json(route, { error: `Not expected in this test: ${path}` }, 500);
   });
   return state;
@@ -85,3 +85,10 @@ export function watchErrors(page: Page) {
 
 /** Settings > Logo: what the mock shop has saved, and how many photos were uploaded. */
 export type LogoState = { brand: { logo: string; width: number; white: boolean }; uploads: number };
+/** The logo part of the mock's state; tests pass `brand` in mockApi's options. */
+export function logoState(state: object): LogoState {
+  const logo = state as Partial<LogoState>;
+  logo.brand ??= { logo: "", width: 0, white: false };
+  logo.uploads ??= 0;
+  return logo as LogoState;
+}
