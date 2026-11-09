@@ -921,7 +921,7 @@ function StoreSettings({ onStoreSaved, onShopLinkSaved }: { onStoreSaved: (store
       {!draft ? !error && <p className="muted">Loading settings…</p> : <>
         <label className="toggle-row"><input type="checkbox" checked={draft.enabled} onChange={e => setDraft({ ...draft, enabled: e.target.checked })} /><span><b>Offer gift packaging in the cart</b><small>Customers can tick it before checkout; the price is added to their total.</small></span></label>
         <div className="settings-grid">
-          <label>Price (₹)<input type="number" inputMode="numeric" min="0" max="10000" step="1" value={draft.price} onChange={e => setDraft({ ...draft, price: e.target.value })} /><small className="field-hint">Change it for festivals or offers; 0 makes it free.</small></label>
+          <label>Price per murti (₹)<input type="number" inputMode="numeric" min="0" max="10000" step="1" value={draft.price} onChange={e => setDraft({ ...draft, price: e.target.value })} /><small className="field-hint">Charged for each murti in the bag (2 murtis = 2 × this price). 0 makes it free.</small></label>
           <label>Title<input maxLength={60} value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} /></label>
           <label className="settings-wide">What's included (optional)<textarea maxLength={200} placeholder="e.g. Premium wrapping, a handwritten note and a gift card" value={draft.description} onChange={e => setDraft({ ...draft, description: e.target.value })} /></label>
         </div>
