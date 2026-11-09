@@ -18,6 +18,7 @@ import { ProductPageSettingsPanel } from "./product-page-settings";
 import { ReviewsSection } from "./reviews-section";
 import { FestivePanel } from "./festive-settings";
 import { InstagramPanel } from "./instagram-settings";
+import { LogoPanel } from "./logo-settings";
 import { ShopLinkPanel, VisitWebsiteLink, loadShopLink } from "./shop-link";
 import { StoreVisibilityPanel, loadStoreSettings } from "./store-visibility";
 import type { StoreSettings as StoreVisibility } from "./store-visibility";
@@ -25,6 +26,7 @@ import { MessageButtons, MessageTemplatesPanel, useMessageConfig } from "./messa
 import { PrintLabelButton, PrintLabelPanel, useLabelConfig } from "./print-label";
 import type { LabelConfig } from "./print-label";
 import type { MessageConfig } from "./messages";
+import { shrinkImage } from "./admin-api";
 import { AlertIcon, ArrowRight, CheckIcon, ChevronDown, CloseIcon, EnterIcon, OrdersIcon, PackageIcon, RupeeIcon, SearchIcon, SignOutIcon, TrendIcon, sectionIcons } from "./icons";
 
 type ProductAccordion = { id: string; title: string; content: string; format?: "rows" | "text"; active: boolean; defaultOpen: boolean };
@@ -586,11 +588,13 @@ function ProductEditor({ allProducts, product, onCancel, onSaved }: { allProduct
       form.set("highlights", JSON.stringify(highlights.map(h => h.text.trim()).filter(Boolean)));
       const savedAccordions: ProductAccordion[] = accordions.map(({ mode, rows, ...section }) => ({ ...section, format: mode, content: mode === "rows" ? rows.filter(row => row.label.trim() && row.value.trim()).map(row => `${row.label.trim()}: ${row.value.trim()}`).join("\n") : section.content }));
       form.set("accordions", JSON.stringify(savedAccordions));
+      const shrunk = new Map<File, File>();
+      for (const image of colours.flatMap(c => c.images)) if (image.file && !shrunk.has(image.file)) shrunk.set(image.file, await shrinkImage(image.file));
       let uploadIndex = 0;
       const payload = colours.map(c => ({
         id: c.id, name: c.name.trim(), swatch: c.swatch, price: Number(c.price), originalPrice: Number(c.originalPrice || c.price), stock: Number(c.stock), active: c.active,
         expectedPrice: c.base?.price, expectedStock: c.base?.stock,
-        gallery: c.images.map(image => { if (image.file) { form.append("images", image.file); return { kind: "upload", uploadIndex: uploadIndex++ }; } return { kind: "existing", src: image.src }; }),
+        gallery: c.images.map(image => { if (image.file) { form.append("images", shrunk.get(image.file) ?? image.file); return { kind: "upload", uploadIndex: uploadIndex++ }; } return { kind: "existing", src: image.src }; }),
       }));
       form.set("colours", JSON.stringify(payload));
       const url = product ? `/api/admin/products/${encodeURIComponent(product.id)}` : "/api/admin/products";
@@ -894,9 +898,10 @@ function StoreSettings({ onStoreSaved, onShopLinkSaved }: { onStoreSaved: (store
   return <>
     <div className="page-heading"><div><p className="overline">STORE</p><h1>Settings</h1><p className="muted">Choose what you want to change.</p></div></div>
     <SettingsTabs tabs={[
-      { key: "shop", label: "Shop", contains: "Open or closed, banner, website link, Instagram, festival decoration", content: <>
+      { key: "shop", label: "Shop", contains: "Open or closed, banner, website link, logo, Instagram, festival decoration", content: <>
         <StoreVisibilityPanel onSaved={onStoreSaved} />
         <ShopLinkPanel onSaved={onShopLinkSaved} />
+        <LogoPanel />
         <InstagramPanel />
         <FestivePanel />
       </> },
