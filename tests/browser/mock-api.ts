@@ -12,10 +12,10 @@ const HOME = { hero: { show: true, productId: "", backgroundImage: "", desktopIm
 const PRODUCT_PAGE = { offer: { show: false, title: "Offer", text: "" }, howMade: { show: false, title: "How it's made", message: "", showImage: true, image: "", founder: "" }, faqs: { show: false, title: "FAQs", items: [] }, viewers: { show: false, minimum: 2 }, recentSales: { show: false, showFirstName: false }, soldThisWeek: { show: false, minimum: 3 }, lowStock: { threshold: 3, text: "Only {count} left." }, stickyBar: { show: true }, endLink: { show: true, label: "Explore", link: "/#catalogue" }, whatsappHelp: { show: true, label: "Chat" } };
 const PAGES = [{ slug: "about", title: "About Kalacar", intro: "Intro", content: '<h2>Story</h2><p><mark class="policy-confirm">To confirm: story</mark></p>', seoTitle: "", seoDescription: "About", published: true, inFooter: true, hasForm: false, draft: true }, { slug: "contact", title: "Contact us", intro: "", content: "<p>Reach us</p>", seoTitle: "", seoDescription: "Contact", published: true, inFooter: true, hasForm: true, draft: false }];
 
-export type ApiState = { instagram: { show: boolean; username: string };  saved: object[]; reviews: object[]; inquiries: object[];  orders: ReturnType<typeof order>[]; stamp: string; realtime: { key: string | null; cluster: string | null }; calls: Record<string, number>; shopLink: string; failing: Set<string>; payment: object; brand: { logo: string; width: number; white: boolean }; uploads: number };
+export type ApiState = { instagram: { show: boolean; username: string };  saved: object[]; reviews: object[]; inquiries: object[];  orders: ReturnType<typeof order>[]; stamp: string; realtime: { key: string | null; cluster: string | null }; calls: Record<string, number>; shopLink: string; failing: Set<string>; payment: object };
 
-export async function mockApi(page: Page, over: Partial<ApiState> = {}) {
-  const state: ApiState = {
+export async function mockApi(page: Page, over: Partial<ApiState & LogoState> = {}) {
+  const state: ApiState & LogoState = {
     saved: [], reviews: [], inquiries: [],
     orders: [order("aaaaaaaa-1", "Paid Buyer", "Paid"), order("bbbbbbbb-2", "No Phone", "Paid", { phone: "", fulfillmentStatus: "processing" }), order("cccccccc-3", "Waiting Buyer", "Awaiting payment")],
     stamp: "1", realtime: { key: null, cluster: null }, calls: {}, shopLink: "http://localhost:3000/", instagram: { show: false, username: "" }, failing: new Set(),
@@ -51,7 +51,7 @@ export async function mockApi(page: Page, over: Partial<ApiState> = {}) {
     if (path.startsWith("/api/admin/inquiries/") && request.method() === "PATCH") return json(route, { ok: true });
     if (path === "/api/admin/uploads" && request.method() === "POST") { state.uploads += 1; return json(route, { url: `/uploads/site-test-${state.uploads}.png` }); }
     if (path === "/api/admin/settings" && request.method() === "PATCH") {
-      const body = request.postDataJSON() as { shopLink?: string; instagram?: { show: boolean; username: string }; brand?: ApiState["brand"] };
+      const body = request.postDataJSON() as { shopLink?: string; instagram?: { show: boolean; username: string }; brand?: LogoState["brand"] };
       if (body.brand) { state.brand = body.brand; return json(route, { brand: state.brand }); }
       if (body.instagram) {
         if (/[^\w.@]/.test(body.instagram.username)) return json(route, { error: "Enter a valid Instagram username, like kalacar.in" }, 400);
@@ -82,3 +82,6 @@ export function watchErrors(page: Page) {
   page.on("console", message => { if (message.type() === "error" && !/Failed to load resource/.test(message.text())) errors.push(message.text()); });
   return errors;
 }
+
+/** Settings > Logo: what the mock shop has saved, and how many photos were uploaded. */
+export type LogoState = { brand: { logo: string; width: number; white: boolean }; uploads: number };
