@@ -12,11 +12,11 @@ const HOME = { hero: { show: true, productId: "", backgroundImage: "", desktopIm
 const PRODUCT_PAGE = { offer: { show: false, title: "Offer", text: "" }, howMade: { show: false, title: "How it's made", message: "", showImage: true, image: "", founder: "" }, faqs: { show: false, title: "FAQs", items: [] }, viewers: { show: false, minimum: 2 }, recentSales: { show: false, showFirstName: false }, soldThisWeek: { show: false, minimum: 3 }, lowStock: { threshold: 3, text: "Only {count} left." }, stickyBar: { show: true }, endLink: { show: true, label: "Explore", link: "/#catalogue" }, whatsappHelp: { show: true, label: "Chat" } };
 const PAGES = [{ slug: "about", title: "About Kalacar", intro: "Intro", content: '<h2>Story</h2><p><mark class="policy-confirm">To confirm: story</mark></p>', seoTitle: "", seoDescription: "About", published: true, inFooter: true, hasForm: false, draft: true }, { slug: "contact", title: "Contact us", intro: "", content: "<p>Reach us</p>", seoTitle: "", seoDescription: "Contact", published: true, inFooter: true, hasForm: true, draft: false }];
 
-export type ApiState = { instagram: { show: boolean; username: string };  saved: object[]; reviews: object[]; inquiries: object[];  orders: ReturnType<typeof order>[]; stamp: string; realtime: { key: string | null; cluster: string | null }; calls: Record<string, number>; shopLink: string; failing: Set<string>; payment: object };
+export type ApiState = { brand: { logo: string; width: number; white: boolean }; uploads: number; instagram: { show: boolean; username: string };  saved: object[]; reviews: object[]; inquiries: object[];  orders: ReturnType<typeof order>[]; stamp: string; realtime: { key: string | null; cluster: string | null }; calls: Record<string, number>; shopLink: string; failing: Set<string>; payment: object };
 
 export async function mockApi(page: Page, over: Partial<ApiState> = {}) {
   const state: ApiState = {
-    saved: [], reviews: [], inquiries: [],
+    brand: { logo: "", width: 0, white: false }, uploads: 0, saved: [], reviews: [], inquiries: [],
     orders: [order("aaaaaaaa-1", "Paid Buyer", "Paid"), order("bbbbbbbb-2", "No Phone", "Paid", { phone: "", fulfillmentStatus: "processing" }), order("cccccccc-3", "Waiting Buyer", "Awaiting payment")],
     stamp: "1", realtime: { key: null, cluster: null }, calls: {}, shopLink: "http://localhost:3000/", instagram: { show: false, username: "" }, failing: new Set(),
     payment: { mode: "test", secretSet: true, checkoutOpen: true, webhookSet: false }, ...over,
@@ -49,8 +49,10 @@ export async function mockApi(page: Page, over: Partial<ApiState> = {}) {
     if (path === "/api/admin/reviews") return json(route, { reviews: state.reviews });
     if (path === "/api/admin/inquiries") return json(route, { inquiries: state.inquiries });
     if (path.startsWith("/api/admin/inquiries/") && request.method() === "PATCH") return json(route, { ok: true });
+    if (path === "/api/admin/uploads" && request.method() === "POST") { state.uploads += 1; return json(route, { url: `/uploads/site-test-${state.uploads}.png` }); }
     if (path === "/api/admin/settings" && request.method() === "PATCH") {
-      const body = request.postDataJSON() as { shopLink?: string; instagram?: { show: boolean; username: string } };
+      const body = request.postDataJSON() as { shopLink?: string; instagram?: { show: boolean; username: string }; brand?: ApiState["brand"] };
+      if (body.brand) { state.brand = body.brand; return json(route, { brand: state.brand }); }
       if (body.instagram) {
         if (/[^\w.@]/.test(body.instagram.username)) return json(route, { error: "Enter a valid Instagram username, like kalacar.in" }, 400);
         state.instagram = { show: body.instagram.show, username: body.instagram.username.replace(/^@/, "") };
@@ -63,7 +65,7 @@ export async function mockApi(page: Page, over: Partial<ApiState> = {}) {
       }
       return json(route, body);
     }
-    if (path === "/api/admin/settings") return json(route, { giftWrap: { enabled: false, price: 49, title: "Gift-ready packaging", description: "" }, store: { mode: "live", comingSoonMessage: "", announcementEnabled: false, announcementText: "" }, shopLink: state.shopLink, instagram: state.instagram, festive: { overlay: "off" } });
+    if (path === "/api/admin/settings") return json(route, { giftWrap: { enabled: false, price: 49, title: "Gift-ready packaging", description: "" }, store: { mode: "live", comingSoonMessage: "", announcementEnabled: false, announcementText: "" }, shopLink: state.shopLink, instagram: state.instagram, brand: state.brand, festive: { overlay: "off" } });
     return json(route, { error: `Not expected in this test: ${path}` }, 500);
   });
   return state;
