@@ -128,7 +128,7 @@ function CouponEditor({ coupon, onDone }: { coupon: Coupon | null; onDone: (mess
     {coupon && <p className="field-hint">Used on {coupon.used} paid {coupon.used === 1 ? "order" : "orders"} ({money(coupon.discountGiven)} given){coupon.reserved > 0 ? `, and reserved by ${coupon.reserved} unpaid ${coupon.reserved === 1 ? "order" : "orders"}` : ""}. A use counts once payment succeeds. Cancelling an unpaid order releases its reservation; refunds don't return a use.</p>}
     {error && <p className="form-error" role="alert">{error}</p>}
     <div className="coupon-actions">
-      {coupon && (used ? <small className="field-hint">Used coupons can't be deleted — switch it off instead.</small> : <button type="button" className="secondary danger" disabled={saving} onClick={() => void remove()}>Delete coupon</button>)}
+      {coupon && (used ? <small className="field-hint">This coupon has been used, so it can't be deleted. Switch it off instead.</small> : <button type="button" className="secondary danger" disabled={saving} onClick={() => void remove()}>Delete coupon</button>)}
       <button type="submit" className="primary" disabled={saving}>{saving ? "Saving…" : coupon ? "Save coupon" : "Create coupon"}</button>
     </div>
   </form>;

@@ -8,15 +8,18 @@ const T = (word: string) => ({ whatsapp: `WhatsApp ${word} {order_id}`, sms: `SM
 const templates = { unfulfilled: T("received"), processing: T("preparing"), dispatched: { ...T("sent"), sms: "Sent by {courier}, ID {tracking_id}" }, completed: { ...T("done"), sms: "" } };
 const label = { deliverTo: "{customer_name}", from: "Kalacar", details: "{order_id}" };
 
-const HOME = { hero: { show: true, productId: "", backgroundImage: "", desktopImage: "", showEyebrow: true, eyebrow: "THE SHOP", showTitle: true, title: "Hero title", showDescription: true, description: "Hero text", buy: { show: true, label: "Buy now", showPrice: true }, explore: { show: true, label: "Explore", link: "#catalogue" } }, firstLaunch: { show: true, showTitle: true, title: "Our First Launch", showDescription: false, description: "", productIds: [] }, comingSoon: { show: true, showTitle: true, title: "Coming Soon", showDescription: false, description: "", items: [] }, collections: { show: true, showTitle: true, title: "Our Collections", showDescription: false, description: "" }, why: { show: false, showTitle: true, title: "Why", showDescription: false, description: "", items: [] }, reviews: { show: false, showTitle: true, title: "Love", showDescription: false, description: "", showText: true, showVideo: true }, story: { show: false, showTitle: true, title: "Our Story", showText: true, text: "", showImage: true, image: "", showFounder: true, founder: "" } };
+export const SLIDE = { productId: "", backgroundImage: "", desktopImage: "", showEyebrow: true, eyebrow: "THE SHOP", showTitle: true, title: "Hero title", showDescription: true, description: "Hero text", buy: { show: true, label: "Buy now", showPrice: true }, explore: { show: true, label: "Explore", link: "#catalogue" } };
+/** How the shop sent the hero before slides: one slide's fields directly on the hero. */
+export const OLD_HERO = { show: true, ...SLIDE };
+export const HOME = { hero: { show: true, autoplay: true, interval: 5, slides: [SLIDE] }, firstLaunch: { show: true, showTitle: true, title: "Our First Launch", showDescription: false, description: "", productIds: [] }, comingSoon: { show: true, showTitle: true, title: "Coming Soon", showDescription: false, description: "", items: [] }, collections: { show: true, showTitle: true, title: "Our Collections", showDescription: false, description: "" }, why: { show: false, showTitle: true, title: "Why", showDescription: false, description: "", items: [] }, reviews: { show: false, showTitle: true, title: "Love", showDescription: false, description: "", showText: true, showVideo: true }, story: { show: false, showTitle: true, title: "Our Story", showText: true, text: "", showImage: true, image: "", showFounder: true, founder: "" } };
 const PRODUCT_PAGE = { offer: { show: false, title: "Offer", text: "" }, howMade: { show: false, title: "How it's made", message: "", showImage: true, image: "", founder: "" }, faqs: { show: false, title: "FAQs", items: [] }, viewers: { show: false, minimum: 2 }, recentSales: { show: false, showFirstName: false }, soldThisWeek: { show: false, minimum: 3 }, lowStock: { threshold: 3, text: "Only {count} left." }, stickyBar: { show: true }, endLink: { show: true, label: "Explore", link: "/#catalogue" }, whatsappHelp: { show: true, label: "Chat" } };
 const PAGES = [{ slug: "about", title: "About Kalacar", intro: "Intro", content: '<h2>Story</h2><p><mark class="policy-confirm">To confirm: story</mark></p>', seoTitle: "", seoDescription: "About", published: true, inFooter: true, hasForm: false, draft: true }, { slug: "contact", title: "Contact us", intro: "", content: "<p>Reach us</p>", seoTitle: "", seoDescription: "Contact", published: true, inFooter: true, hasForm: true, draft: false }];
 
-export type ApiState = { instagram: { show: boolean; username: string };  saved: object[]; reviews: object[]; inquiries: object[];  orders: ReturnType<typeof order>[]; stamp: string; realtime: { key: string | null; cluster: string | null }; calls: Record<string, number>; shopLink: string; failing: Set<string>; payment: object };
+export type ApiState = { home: object; instagram: { show: boolean; username: string };  saved: object[]; reviews: object[]; inquiries: object[];  orders: ReturnType<typeof order>[]; stamp: string; realtime: { key: string | null; cluster: string | null }; calls: Record<string, number>; shopLink: string; failing: Set<string>; payment: object };
 
 export async function mockApi(page: Page, over: Partial<ApiState> = {}) {
   const state: ApiState = {
-    saved: [], reviews: [], inquiries: [],
+    home: HOME, saved: [], reviews: [], inquiries: [],
     orders: [order("aaaaaaaa-1", "Paid Buyer", "Paid"), order("bbbbbbbb-2", "No Phone", "Paid", { phone: "", fulfillmentStatus: "processing" }), order("cccccccc-3", "Waiting Buyer", "Awaiting payment")],
     stamp: "1", realtime: { key: null, cluster: null }, calls: {}, shopLink: "http://localhost:3000/", instagram: { show: false, username: "" }, failing: new Set(),
     payment: { mode: "test", secretSet: true, checkoutOpen: true, webhookSet: false }, ...over,
@@ -42,15 +45,17 @@ export async function mockApi(page: Page, over: Partial<ApiState> = {}) {
     if (path === "/api/admin/payment-status") return json(route, state.payment);
     if (path === "/api/admin/push") return json(route, { publicKey: "" });
     if (path === "/api/admin/site-content" && request.method() === "PATCH") { const body = request.postDataJSON() as object; state.saved.push(body); return json(route, body); }
-    if (path === "/api/admin/site-content") return json(route, { home: HOME, productPage: PRODUCT_PAGE });
+    if (path === "/api/admin/site-content") return json(route, { home: state.home, productPage: PRODUCT_PAGE });
     if (path === "/api/admin/pages") return json(route, { pages: PAGES });
     if (path.startsWith("/api/admin/pages/") && request.method() === "PATCH") { const body = request.postDataJSON() as object; state.saved.push(body); return json(route, { page: { ...PAGES[0], ...body } }); }
     if (path === "/api/admin/reviews" && request.method() === "POST") { state.saved.push(request.postDataJSON() as object); return json(route, { ok: true }, 201); }
     if (path === "/api/admin/reviews") return json(route, { reviews: state.reviews });
     if (path === "/api/admin/inquiries") return json(route, { inquiries: state.inquiries });
     if (path.startsWith("/api/admin/inquiries/") && request.method() === "PATCH") return json(route, { ok: true });
+    if (path === "/api/admin/uploads" && request.method() === "POST") { const logo = logoState(state); logo.uploads += 1; return json(route, { url: `/uploads/site-test-${logo.uploads}.png` }); }
     if (path === "/api/admin/settings" && request.method() === "PATCH") {
-      const body = request.postDataJSON() as { shopLink?: string; instagram?: { show: boolean; username: string } };
+      const body = request.postDataJSON() as { shopLink?: string; instagram?: { show: boolean; username: string }; brand?: LogoState["brand"] };
+      if (body.brand) { logoState(state).brand = body.brand; return json(route, { brand: body.brand }); }
       if (body.instagram) {
         if (/[^\w.@]/.test(body.instagram.username)) return json(route, { error: "Enter a valid Instagram username, like kalacar.in" }, 400);
         state.instagram = { show: body.instagram.show, username: body.instagram.username.replace(/^@/, "") };
@@ -63,7 +68,7 @@ export async function mockApi(page: Page, over: Partial<ApiState> = {}) {
       }
       return json(route, body);
     }
-    if (path === "/api/admin/settings") return json(route, { giftWrap: { enabled: false, price: 49, title: "Gift-ready packaging", description: "" }, store: { mode: "live", comingSoonMessage: "", announcementEnabled: false, announcementText: "" }, shopLink: state.shopLink, instagram: state.instagram, festive: { overlay: "off" } });
+    if (path === "/api/admin/settings") return json(route, { giftWrap: { enabled: false, price: 49, title: "Gift-ready packaging", description: "" }, store: { mode: "live", comingSoonMessage: "", announcementEnabled: false, announcementText: "" }, shopLink: state.shopLink, instagram: state.instagram, brand: logoState(state).brand, festive: { overlay: "off" } });
     return json(route, { error: `Not expected in this test: ${path}` }, 500);
   });
   return state;
@@ -79,4 +84,14 @@ export function watchErrors(page: Page) {
   page.on("pageerror", error => errors.push(error.message));
   page.on("console", message => { if (message.type() === "error" && !/Failed to load resource/.test(message.text())) errors.push(message.text()); });
   return errors;
+}
+
+/** Settings > Logo: what the mock shop has saved, and how many photos were uploaded. */
+export type LogoState = { brand: { logo: string; width: number; white: boolean }; uploads: number };
+/** The logo part of the mock's state; tests pass `brand` in mockApi's options. */
+export function logoState(state: object): LogoState {
+  const logo = state as Partial<LogoState>;
+  logo.brand ??= { logo: "", width: 0, white: false };
+  logo.uploads ??= 0;
+  return logo as LogoState;
 }

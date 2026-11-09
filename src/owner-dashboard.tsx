@@ -278,7 +278,7 @@ export default function Dashboard() {
     {authState === "notOwner"
       ? <button className="primary wide" onClick={() => void signOut()}>Sign out and use another account</button>
       : <a className="google-button" href={`/api/auth/google/start?next=${encodeURIComponent(window.location.pathname)}&scope=owner`}><svg aria-hidden="true" viewBox="0 0 18 18" width="18" height="18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>Continue with Google</a>}
-    <p className="demo-note">Only emails listed in KALACAR_OWNER_EMAILS can open the dashboard.</p>
+    <p className="demo-note">Only the shop owner's Google accounts can open the dashboard.</p>
   </section></main>;
 
   const todayLabel = new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long" }).format(new Date()).toUpperCase();
@@ -306,7 +306,7 @@ function formatMoney(amount: number, showPaise = false) {
 function Metric({ label, value, detail, icon }: { label: string; value: string; detail: string; icon: ReactNode }) { return <article className="metric-card"><span className="metric-icon">{icon}</span><p>{label}</p><strong>{value}</strong><small>{detail}</small></article>; }
 function OperationsInbox({ metrics, loading, error, onRetry, onOpen }: { metrics: AdminMetrics | null; loading: boolean; error: string; onRetry: () => void; onOpen: (section: Section) => void }) {
   const alerts = metrics ? [
-    { title: "Paid orders awaiting fulfillment", detail: "Prepare and update these orders for customers.", count: metrics.fulfillmentNeeded, section: "Orders" as const },
+    { title: "Paid orders awaiting fulfilment", detail: "Prepare and update these orders for customers.", count: metrics.fulfillmentNeeded, section: "Orders" as const },
     { title: "Inventory needs attention", detail: `${metrics.outOfStockProducts} out of stock · ${metrics.lowStockProducts} low at 1–${metrics.lowStockThreshold} units.`, count: metrics.outOfStockProducts + metrics.lowStockProducts, section: "Products" as const },
     { title: "Payment recovery", detail: "Failed or interrupted payments may need follow-up.", count: metrics.paymentRecovery, section: "Orders" as const },
   ].filter(alert => alert.count > 0) : [];
@@ -742,7 +742,7 @@ function Orders({ orders, loading, error, filter, counts, onFilter, paymentMode,
     catch { setDetailError("Could not access the clipboard. Select and copy the address manually."); }
   }
   const total = counts?.[filter] ?? 0;
-  return <><div className="page-heading"><div><p className="overline">CUSTOMER REQUESTS</p><h1>Orders</h1><p className="muted">Review orders and update fulfillment progress.</p></div></div>
+  return <><div className="page-heading"><div><p className="overline">CUSTOMER REQUESTS</p><h1>Orders</h1><p className="muted">Review orders and update fulfilment progress.</p></div></div>
     {paymentMode === "test" && <p className="test-mode-warning" role="note">Razorpay test mode · These orders are test activity, not live sales.</p>}
     {paymentMode === "unconfigured" && <p className="test-mode-warning" role="note">Payment mode is not configured · Do not treat these orders as live sales.</p>}
     <section className="panel order-filters" role="group" aria-label="Filter orders by status">{orderFilters.map(item => <button type="button" key={item.key} className={filter === item.key ? "order-filter selected" : "order-filter"} aria-pressed={filter === item.key} onClick={() => onFilter(item.key)}>{item.label}<span>{counts?.[item.key] ?? "—"}</span></button>)}</section>
@@ -914,18 +914,18 @@ function StoreSettings({ onStoreSaved, onShopLinkSaved }: { onStoreSaved: (store
         <PrintLabelPanel />
         <OrderAlertsPanel />
       </> },
-      { key: "payments", label: "Cart and payments", contains: "Gift packaging, Razorpay status", content: <>
+      { key: "payments", label: "Bag and payments", contains: "Gift packaging, Razorpay status", content: <>
     <section className={`panel settings-card${dirty ? " dirty" : ""}`} aria-labelledby="gift-title">
       <div className="panel-head"><div><p className="overline">CART ADD-ON</p><h2 id="gift-title">Gift-ready packaging</h2></div>{saved && <StatusChip tone={saved.enabled ? "success" : "neutral"}>{saved.enabled ? "On in shop" : "Off"}</StatusChip>}</div>
       {error && <p className="order-detail-error" role="alert">{error}</p>}
       {!draft ? !error && <p className="muted">Loading settings…</p> : <>
-        <label className="toggle-row"><input type="checkbox" checked={draft.enabled} onChange={e => setDraft({ ...draft, enabled: e.target.checked })} /><span><b>Offer gift packaging in the cart</b><small>Customers can tick it before checkout; the price is added to their total.</small></span></label>
+        <label className="toggle-row"><input type="checkbox" checked={draft.enabled} onChange={e => setDraft({ ...draft, enabled: e.target.checked })} /><span><b>Offer gift packaging in the bag</b><small>Customers can tick it before checkout; the price is added to their total.</small></span></label>
         <div className="settings-grid">
           <label>Price per murti (₹)<input type="number" inputMode="numeric" min="0" max="10000" step="1" value={draft.price} onChange={e => setDraft({ ...draft, price: e.target.value })} /><small className="field-hint">Charged for each murti in the bag (2 murtis = 2 × this price). 0 makes it free.</small></label>
           <label>Title<input maxLength={60} value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} /></label>
           <label className="settings-wide">What's included (optional)<textarea maxLength={200} placeholder="e.g. Premium wrapping, a handwritten note and a gift card" value={draft.description} onChange={e => setDraft({ ...draft, description: e.target.value })} /></label>
         </div>
-        <div className="settings-preview" aria-label="Cart preview"><span className="overline">PREVIEW IN CART</span><div className="gift-preview"><span className="gift-check" aria-hidden="true" /><div><b>{draft.title || "Gift-ready packaging"}</b>{draft.description && <small>{draft.description}</small>}</div><strong>{Number(draft.price) > 0 ? `+₹${Number(draft.price)}` : "Free"}</strong></div>{!draft.enabled && <small className="field-hint">Hidden from customers while switched off.</small>}</div>
+        <div className="settings-preview" aria-label="Bag preview"><span className="overline">PREVIEW IN BAG</span><div className="gift-preview"><span className="gift-check" aria-hidden="true" /><div><b>{draft.title || "Gift-ready packaging"}</b>{draft.description && <small>{draft.description}</small>}</div><strong>{Number(draft.price) > 0 ? `+₹${Number(draft.price)}` : "Free"}</strong></div>{!draft.enabled && <small className="field-hint">Hidden from customers while switched off.</small>}</div>
         {message && <p className="order-saved" role="status">{message}</p>}
         <div className="settings-actions">{dirty && <span className="stock-change-summary">Unsaved changes</span>}<button className="text-button" type="button" disabled={!dirty || busy} onClick={() => saved && setDraft({ ...saved, price: String(saved.price) })}>Undo</button><button className="primary" type="button" disabled={!dirty || busy} onClick={() => void save()}>{busy ? "Saving…" : "Save settings"}</button></div>
       </>}
