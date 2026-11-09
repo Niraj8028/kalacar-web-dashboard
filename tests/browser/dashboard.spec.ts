@@ -227,7 +227,7 @@ test("product editor has description and bundle choices", async ({ page }) => {
 });
 
 test.describe("Settings are grouped by purpose", () => {
-  const groups = [["Shop", "Shop status"], ["Products", "Product page settings"], ["Orders", "Customer message templates"], ["Cart and payments", "Razorpay status"]] as const;
+  const groups = [["Shop", "Shop status"], ["Products", "Product page settings"], ["Orders", "Customer message templates"], ["Bag and payments", "Razorpay status"]] as const;
   for (const [tab, card] of groups) {
     test(`${tab} tab shows its settings only`, async ({ page }) => {
       const errors = watchErrors(page);
