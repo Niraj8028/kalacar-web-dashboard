@@ -93,7 +93,7 @@ export function HomeEditor({ products }: { products: ProductOption[] }) {
       <label className="editor-field">Product<select value={spotlight.productId} onChange={event => set("spotlight", { productId: event.target.value })}><option value="">Choose a product (the section stays hidden without one)</option>{products.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
       <ImageField label="Photo (one image; a collage made as a single PNG works too). Empty uses the product's main photo." value={spotlight.image} onChange={image => set("spotlight", { image })} />
       <Check label="Show the shop logo" checked={spotlight.showLogo} onChange={showLogo => set("spotlight", { showLogo })} />
-      <ToggleText label="WhatsApp link" show={spotlight.whatsapp.show} onShow={show => set("spotlight", { whatsapp: { ...spotlight.whatsapp, show } })} value={spotlight.whatsapp.label} onChange={label => set("spotlight", { whatsapp: { ...spotlight.whatsapp, label } })} max={40} />
+      <ToggleText label="WhatsApp button" show={spotlight.whatsapp.show} onShow={show => set("spotlight", { whatsapp: { ...spotlight.whatsapp, show } })} value={spotlight.whatsapp.label} onChange={label => set("spotlight", { whatsapp: { ...spotlight.whatsapp, label } })} max={40} />
     </SectionCard>
     <SectionCard overline="PRODUCTS" title="First launch grid" show={firstLaunch.show} onShow={show => set("firstLaunch", { show })}>
       {heading("firstLaunch")}

@@ -3,7 +3,7 @@ export type HeroSlide = { productId: string; backgroundImage: string; desktopIma
 export const MAX_HERO_SLIDES = 8;
 export const NEW_HERO_SLIDE: HeroSlide = { productId: "", backgroundImage: "", desktopImage: "", showEyebrow: true, eyebrow: "", showTitle: true, title: "", showDescription: true, description: "", buy: { show: true, label: "Buy now", showPrice: true }, explore: { show: true, label: "Explore collections", link: "#catalogue" } };
 export type SpotlightSection = { show: boolean; showTitle: boolean; title: string; showDescription: boolean; description: string; productId: string; image: string; showLogo: boolean; whatsapp: { show: boolean; label: string } };
-export const DEFAULT_SPOTLIGHT: SpotlightSection = { show: false, showTitle: true, title: "Bring home the divine", showDescription: true, description: "", productId: "", image: "", showLogo: true, whatsapp: { show: true, label: "WhatsApp to order" } };
+export const DEFAULT_SPOTLIGHT: SpotlightSection = { show: false, showTitle: true, title: "Bring home the divine", showDescription: true, description: "", productId: "", image: "", showLogo: true, whatsapp: { show: true, label: "Order on WhatsApp" } };
 export type HomeContent = {
   hero: { show: boolean; autoplay: boolean; interval: number; slides: HeroSlide[] };
   firstLaunch: { show: boolean; showTitle: boolean; title: string; showDescription: boolean; description: string; productIds: string[] };

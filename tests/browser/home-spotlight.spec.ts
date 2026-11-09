@@ -16,7 +16,7 @@ test("Product spotlight: pick a product, set the heading, save", async ({ page }
   await card.getByRole("checkbox", { name: "Show the shop logo" }).uncheck();
   await page.getByRole("button", { name: "Save home page" }).click();
   await expect(page.getByText("Saved. The home page is updated.")).toBeVisible();
-  expect(state.saved[0]).toMatchObject({ home: { spotlight: { show: true, title: "Bring home the divine", description: "Experience the joy of Krishna", productId: firstProduct, showLogo: false, whatsapp: { show: true, label: "WhatsApp to order" } } } });
+  expect(state.saved[0]).toMatchObject({ home: { spotlight: { show: true, title: "Bring home the divine", description: "Experience the joy of Krishna", productId: firstProduct, showLogo: false, whatsapp: { show: true, label: "Order on WhatsApp" } } } });
   await expectFits(page);
   expect(errors).toEqual([]);
 });
