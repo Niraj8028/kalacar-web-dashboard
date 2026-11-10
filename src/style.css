@@ -318,3 +318,6 @@ footer{margin-top:8px;font-size:12px;color:var(--muted)}
 .festive-option-colours{display:flex;gap:4px;margin-bottom:3px}
 .festive-option-colours i{width:14px;height:14px;border-radius:50%}
 .hero-slide-editor{display:grid;gap:14px;margin:4px 0 0;padding:14px 16px 16px;border:1px solid #e3e1da;border-radius:10px;background:#fbfbf8}.hero-slide-editor legend{padding:0 6px;font-size:14px;font-weight:600;color:#32332b}.hero-slide-actions{display:flex;flex-wrap:wrap;gap:8px}.hero-slide-actions button{min-height:38px}
+.extra-categories { display: grid; gap: 8px; margin: 0; padding: 12px; border: 1px solid var(--line, #e3d9cc); border-radius: 8px; }
+.extra-categories legend { padding: 0 4px; font-weight: 600; }
+.extra-categories > div { display: flex; flex-wrap: wrap; gap: 6px 18px; }

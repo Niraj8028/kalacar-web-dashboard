@@ -34,7 +34,7 @@ type ProductAccordionRowDraft = { id: string; label: string; value: string };
 type ProductAccordionDraft = ProductAccordion & { mode: "rows" | "text"; rows: ProductAccordionRowDraft[] };
 type ProductImageDraft = { key: string; src?: string; file?: File; preview: string };
 type Colour = { id: string; name: string; swatch: string; gallery: string[]; price: number; originalPrice: number; stock: number; sort: number; active: boolean };
-type Product = { id: string; name: string; deity: string; description?: string; bundleIds?: string[]; badge?: string; tagline?: string; specs?: { label: string; value: string }[]; highlights?: string[]; image: string; gallery?: string[]; placement?: string; accordions?: ProductAccordion[]; price: number; stock: number; variants: Colour[] };
+type Product = { id: string; name: string; deity: string; categories?: string[]; description?: string; bundleIds?: string[]; badge?: string; tagline?: string; specs?: { label: string; value: string }[]; highlights?: string[]; image: string; gallery?: string[]; placement?: string; accordions?: ProductAccordion[]; price: number; stock: number; variants: Colour[] };
 type Order = { id: string; date: string; customer: string; item: string; total: number; status: string; fulfillmentStatus?: string; trackingNote?: string; trackingCourier?: string; trackingId?: string; giftWrap?: boolean; email?: string; phone?: string; address?: string; pincode?: string };
 type OrderDetail = Order & { items: { id: string; name: string; variant?: string; price: number; quantity: number }[]; giftWrap?: boolean; giftWrapPrice?: number; couponCode?: string; discount?: number; rawStatus: string; trackingNote: string; cancelReason: string; cancelledAt: string | null; refundAmount: number | null; refundReason: string; refundReference: string; refundedAt: string | null };
 type AdminMetrics = { todayRevenue: number; monthRevenue: number; totalOrders: number; paidOrders: number; averageOrderValue: number; lowStockProducts: number; outOfStockProducts: number; lowStockThreshold: number; fulfillmentNeeded: number; paymentRecovery: number; paymentMode: "test" | "live" | "unconfigured" };
@@ -350,12 +350,12 @@ function Products({ products, drafts, setDrafts, onColourSaved, onProductCreated
   const [rowMessage, setRowMessage] = useState<{ id: string; text: string; error?: boolean } | null>(null);
   // Stable alphabetical order: rows don't jump around after one is saved.
   const [categoryFilter, setCategoryFilter] = useState("");
-  const categoryNames = [...new Set(products.map(product => product.deity))].sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
+  const categoryNames = [...new Set(products.flatMap(product => product.categories?.length ? product.categories : [product.deity]))].sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
   const shownCategory = categoryNames.includes(categoryFilter) ? categoryFilter : "";
   const [productSearch, setProductSearch] = useState("");
   const [stockFilter, setStockFilter] = useState<StockFilter>("all");
   const searchText = productSearch.trim().toLowerCase();
-  const inCategoryAndSearch = products.filter(product => (!shownCategory || product.deity === shownCategory) && (!searchText || [product.name, product.deity, product.badge ?? "", ...product.variants.map(colour => colour.name)].some(text => text.toLowerCase().includes(searchText))));
+  const inCategoryAndSearch = products.filter(product => (!shownCategory || (product.categories?.length ? product.categories : [product.deity]).includes(shownCategory)) && (!searchText || [product.name, product.deity, product.badge ?? "", ...product.variants.map(colour => colour.name)].some(text => text.toLowerCase().includes(searchText))));
   const stockCount = (key: StockFilter) => key === "all" ? inCategoryAndSearch.length : inCategoryAndSearch.filter(product => productStockLevels(product).includes(key)).length;
   // A row with unsaved changes or a fresh save message stays visible, whatever the filters say.
   const keepVisible = (product: Product) => product.variants.some(colour => drafts[colour.id] || rowMessage?.id === colour.id);
@@ -518,6 +518,7 @@ function ColourEditor({ colour, index, count, onChange, onMove, onRemove, regist
 function ProductEditor({ allProducts, product, onCancel, onSaved }: { allProducts: Product[]; product: Product | null; onCancel: () => void; onSaved: () => Promise<void> }) {
   const [name, setName] = useState(product?.name ?? "");
   const [deity, setDeity] = useState(product?.deity ?? "");
+  const [extraCategories, setExtraCategories] = useState<string[]>(() => (product?.categories ?? []).filter(name => name !== product?.deity));
   const [categories, setCategories] = useState<Category[] | null>(null);
   const [categoriesError, setCategoriesError] = useState("");
   useEffect(() => {
@@ -583,7 +584,7 @@ function ProductEditor({ allProducts, product, onCancel, onSaved }: { allProduct
       if (missing) throw new Error(`Add at least one photo for “${missing.name || "a colour"}”.`);
       if (!colours.some(c => c.active)) throw new Error("Keep at least one colour visible in the shop.");
       const form = new FormData();
-      form.set("name", name); form.set("deity", deity); form.set("badge", badge); form.set("tagline", tagline); form.set("placement", placement); form.set("description", description); form.set("bundleIds", JSON.stringify(bundleIds));
+      form.set("name", name); form.set("deity", deity); form.set("extraCategories", JSON.stringify(extraCategories.filter(name => name !== deity))); form.set("badge", badge); form.set("tagline", tagline); form.set("placement", placement); form.set("description", description); form.set("bundleIds", JSON.stringify(bundleIds));
       form.set("specs", JSON.stringify(specs.filter(spec => spec.label.trim() || spec.value.trim()).map(({ label, value }) => ({ label: label.trim(), value: value.trim() }))));
       form.set("highlights", JSON.stringify(highlights.map(h => h.text.trim()).filter(Boolean)));
       const savedAccordions: ProductAccordion[] = accordions.map(({ mode, rows, ...section }) => ({ ...section, format: mode, content: mode === "rows" ? rows.filter(row => row.label.trim() && row.value.trim()).map(row => `${row.label.trim()}: ${row.value.trim()}`).join("\n") : section.content }));
@@ -623,6 +624,9 @@ function ProductEditor({ allProducts, product, onCancel, onSaved }: { allProduct
     <div className="form-grid">
       <label>Product name<input required minLength={2} maxLength={160} value={name} onChange={e => setName(e.target.value)} /></label>
       <label>Category<select required value={deity} disabled={!categories?.length} onChange={e => setDeity(e.target.value)}><option value="" disabled>{categories ? categories.length ? "Choose a category" : "No categories yet" : "Loading categories…"}</option>{categories?.map(category => <option key={category.id} value={category.name}>{category.name}</option>)}</select>{categoriesError ? <small className="fulfillment-error" role="alert">{categoriesError}</small> : <small className="field-hint">Add or rename categories in Settings.</small>}</label>
+      {categories && categories.length > 1 && deity && <fieldset className="extra-categories"><legend>Also show under</legend><small className="field-hint">Optional. The murti appears in each ticked category as well as its main one.</small>
+        <div>{categories.filter(category => category.name !== deity).map(category => <label key={category.id} className="editor-check"><input type="checkbox" checked={extraCategories.includes(category.name)} onChange={event => setExtraCategories(current => event.target.checked ? [...current, category.name] : current.filter(name => name !== category.name))} /><span>{category.name}</span></label>)}</div>
+      </fieldset>}
       <label>Badge (optional)<input maxLength={40} placeholder="e.g. Flagship, New, Festive" value={badge} onChange={e => setBadge(e.target.value)} /><small className="field-hint">Small label on the product photo and card.</small></label>
       <label>Tagline (optional)<input maxLength={120} placeholder="A short line under the name" value={tagline} onChange={e => setTagline(e.target.value)} /></label>
       <label className="form-grid-wide">Short description / placement (optional)<textarea maxLength={255} value={placement} onChange={e => setPlacement(e.target.value)} /></label>
@@ -905,9 +909,12 @@ function StoreSettings({ onStoreSaved, onShopLinkSaved }: { onStoreSaved: (store
         <InstagramPanel />
         <FestivePanel />
       </> },
-      { key: "products", label: "Products", contains: "Categories, product page content, real activity", content: <>
+      { key: "products", label: "Products", contains: "Categories, product page content", content: <>
         <CategoriesPanel />
-        <ProductPageSettingsPanel />
+        <ProductPageSettingsPanel part="page" />
+      </> },
+      { key: "activity", label: "Activity", contains: "Purchase pop-ups, sold count, people viewing", content: <>
+        <ProductPageSettingsPanel part="activity" />
       </> },
       { key: "orders", label: "Orders", contains: "Customer messages, print label, new-order alerts", content: <>
         <MessageTemplatesPanel />

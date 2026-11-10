@@ -237,16 +237,33 @@ test("inquiries show messages and can be marked handled", async ({ page }) => {
   await expectFits(page);
 });
 
-test("product page settings save, and real activity starts switched off", async ({ page }) => {
+test("product page settings save, and the activity switches live in their own tab", async ({ page }) => {
   const state = await mockApi(page);
   await page.goto("/settings?tab=products");
-  const card = page.locator('[aria-labelledby="product-page-title"]');
-  await expect(card.getByRole("checkbox", { name: /Show how many people are viewing/ })).not.toBeChecked();
+  const card = page.locator('[aria-labelledby="product-page-page-title"]');
+  await expect(card.getByRole("checkbox", { name: /Show how many people are viewing/ })).toHaveCount(0);
   await card.getByRole("checkbox", { name: "Show the offer" }).check();
   await card.getByLabel("Offer text").fill("₹200 off above ₹1,500");
   await card.getByRole("button", { name: "Save product page settings" }).click();
   await expect(card.getByText(/Saved. Every product page/)).toBeVisible();
   expect(state.saved[0]).toMatchObject({ productPage: { offer: { show: true, text: "₹200 off above ₹1,500" } } });
+});
+
+test("shop activity: real pop-ups, sold count and viewers start off; timer and size save", async ({ page }) => {
+  const state = await mockApi(page);
+  await page.goto("/settings?tab=activity");
+  const card = page.locator('[aria-labelledby="product-page-activity-title"]');
+  for (const name of [/Show recent purchases/, /Show how many sold recently/, /Show how many people are viewing/]) await expect(card.getByRole("checkbox", { name })).not.toBeChecked();
+  await card.getByRole("checkbox", { name: /Show recent purchases/ }).check();
+  await card.getByRole("checkbox", { name: /Also show on the home page/ }).check();
+  await card.getByLabel("Seconds before each pop-up").fill("12");
+  await card.getByLabel("Seconds each pop-up stays").fill("6");
+  await card.getByLabel("Size").selectOption("large");
+  await card.getByRole("checkbox", { name: /Show how many sold recently/ }).check();
+  await card.getByLabel(/Count sales from the last/).fill("12");
+  await card.getByRole("button", { name: "Save shop activity" }).click();
+  await expect(card.getByText("Saved. The shop is updated.")).toBeVisible();
+  expect(state.saved[0]).toMatchObject({ productPage: { recentSales: { show: true, everyPage: true, delay: 12, duration: 6, size: "large", showImage: true }, soldThisWeek: { show: true, hours: 12 }, offer: { show: false } } });
 });
 
 test("product editor has description and bundle choices", async ({ page }) => {
@@ -257,8 +274,20 @@ test("product editor has description and bundle choices", async ({ page }) => {
   await expect(page.getByRole("group", { name: /Frequently bought together/ }).getByRole("checkbox").first()).toBeVisible();
 });
 
+test("a product can be shown under more categories than its main one", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/products");
+  await page.getByRole("button", { name: "Edit details" }).first().click();
+  const main = page.getByRole("combobox", { name: /^Category(?!.*filter)/ }).last();
+  const extras = page.getByRole("group", { name: "Also show under" });
+  await expect(extras).toBeVisible();
+  // The main category is never offered again as an extra.
+  await expect(extras.getByRole("checkbox", { name: await main.inputValue(), exact: true })).toHaveCount(0);
+  await expect(extras.getByRole("checkbox")).toHaveCount(1);
+});
+
 test.describe("Settings are grouped by purpose", () => {
-  const groups = [["Shop", "Shop status"], ["Products", "Product page settings"], ["Orders", "Customer message templates"], ["Bag and payments", "Razorpay status"]] as const;
+  const groups = [["Shop", "Shop status"], ["Products", "Product page settings"], ["Activity", "Shop activity"], ["Orders", "Customer message templates"], ["Bag and payments", "Razorpay status"]] as const;
   for (const [tab, card] of groups) {
     test(`${tab} tab shows its settings only`, async ({ page }) => {
       const errors = watchErrors(page);

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { errorText, getJson, sendJson } from "./admin-api";
 import type { Category } from "./categories";
 import { Check, ImageField, SaveBar, SectionCard, TextField, ToggleText } from "./editor-fields";
-import { DEFAULT_SPOTLIGHT, MAX_HERO_SLIDES, NEW_HERO_SLIDE } from "./site-content-types";
+import { DEFAULT_CATALOGUE, DEFAULT_SPOTLIGHT, MAX_HERO_SLIDES, NEW_HERO_SLIDE } from "./site-content-types";
 import type { HeroSlide, HomeContent, ProductOption } from "./site-content-types";
 
 function ProductPicker({ label, options, chosen, onChange, max }: { label: string; options: ProductOption[]; chosen: string[]; onChange: (ids: string[]) => void; max: number }) {
@@ -18,7 +18,7 @@ function CategoryImage({ category, onChanged }: { category: Category; onChanged:
 
 /** A shop still on the old single-hero shape: show it as one slide. */
 function withSlides(input: HomeContent): HomeContent {
-  const home = { ...input, spotlight: { ...DEFAULT_SPOTLIGHT, ...input.spotlight, whatsapp: { ...DEFAULT_SPOTLIGHT.whatsapp, ...input.spotlight?.whatsapp } } };
+  const home = { ...input, catalogue: { ...DEFAULT_CATALOGUE, ...input.catalogue }, why: { ...input.why, showLogo: input.why?.showLogo ?? true, logo: input.why?.logo ?? "" }, spotlight: { ...DEFAULT_SPOTLIGHT, ...input.spotlight, whatsapp: { ...DEFAULT_SPOTLIGHT.whatsapp, ...input.spotlight?.whatsapp } } };
   const hero = home.hero as HomeContent["hero"] & Partial<HeroSlide>;
   if (Array.isArray(hero.slides)) return home;
   const { show, ...slide } = hero as unknown as HeroSlide & { show: boolean };
@@ -63,7 +63,7 @@ export function HomeEditor({ products }: { products: ProductOption[] }) {
   const dirty = useMemo(() => JSON.stringify(saved) !== JSON.stringify(draft), [saved, draft]);
   if (!draft || !saved) return error ? <p className="order-detail-error" role="alert">{error}</p> : <p className="muted">Loading the home page…</p>;
   const set = <K extends keyof HomeContent>(key: K, change: Partial<HomeContent[K]>) => { setDraft(current => current && { ...current, [key]: { ...current[key], ...change } }); setMessage(""); };
-  const { hero, spotlight, firstLaunch, comingSoon, collections, why, reviews, story } = draft;
+  const { hero, spotlight, firstLaunch, comingSoon, collections, catalogue, why, reviews, story } = draft;
   const setSlides = (slides: HeroSlide[]) => set("hero", { slides });
   async function save() {
     setBusy(true); setError(""); setMessage("");
@@ -71,7 +71,7 @@ export function HomeEditor({ products }: { products: ProductOption[] }) {
     catch (cause) { setError(errorText(cause, "Could not save the home page.")); }
     finally { setBusy(false); }
   }
-  const heading = (section: "firstLaunch" | "comingSoon" | "collections" | "why" | "reviews") => <>
+  const heading = (section: "firstLaunch" | "comingSoon" | "collections" | "catalogue" | "why" | "reviews") => <>
     <ToggleText label="Section title" show={draft[section].showTitle} onShow={showTitle => set(section, { showTitle })} value={draft[section].title} onChange={title => set(section, { title })} max={120} />
     <ToggleText label="Short description" show={draft[section].showDescription} onShow={showDescription => set(section, { showDescription })} value={draft[section].description} onChange={description => set(section, { description })} max={400} rows={2} />
   </>;
@@ -87,9 +87,7 @@ export function HomeEditor({ products }: { products: ProductOption[] }) {
       {hero.slides.length < MAX_HERO_SLIDES && <button className="secondary" type="button" onClick={() => setSlides([...hero.slides, { ...NEW_HERO_SLIDE }])}>+ Add slide</button>}
     </SectionCard>
     <SectionCard overline="BELOW THE HERO" title="Product spotlight" show={spotlight.show} onShow={show => set("spotlight", { show })}>
-      <p className="muted">One featured murti. Its name, badge, tagline, price, rating and stock come from the product itself, so they stay correct.</p>
-      <ToggleText label="Heading" show={spotlight.showTitle} onShow={showTitle => set("spotlight", { showTitle })} value={spotlight.title} onChange={title => set("spotlight", { title })} max={120} placeholder="Bring home the divine" />
-      <ToggleText label="Subheading" show={spotlight.showDescription} onShow={showDescription => set("spotlight", { showDescription })} value={spotlight.description} onChange={description => set("spotlight", { description })} max={200} placeholder="Experience the joy of Cute Shri Krishna" />
+      <p className="muted">One featured murti. Its name, badge, tagline, price, rating and stock come from the product itself, so they stay correct. Customers can tap anywhere on it to open the murti.</p>
       <label className="editor-field">Product<select value={spotlight.productId} onChange={event => set("spotlight", { productId: event.target.value })}><option value="">Choose a product (the section stays hidden without one)</option>{products.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
       <ImageField label="Photo (one image; a collage made as a single PNG works too). Empty uses the product's main photo." value={spotlight.image} onChange={image => set("spotlight", { image })} />
       <Check label="Show the shop logo" checked={spotlight.showLogo} onChange={showLogo => set("spotlight", { showLogo })} />
@@ -114,20 +112,30 @@ export function HomeEditor({ products }: { products: ProductOption[] }) {
       <p className="muted">Shown as cards: the first is large, with the others beside it. Only categories with products appear. Photos save straight away. Add or rename categories in Settings.</p>
       <div className="editor-image-grid">{categories.map(category => <CategoryImage key={category.id} category={category} onChanged={() => void loadCategories()} />)}</div>
     </SectionCard>
+    <SectionCard overline="PRODUCTS" title="Featured murtis" show={catalogue.show} onShow={show => set("catalogue", { show })}>
+      <ToggleText label="Small line" show={catalogue.showEyebrow} onShow={showEyebrow => set("catalogue", { showEyebrow })} value={catalogue.eyebrow} onChange={eyebrow => set("catalogue", { eyebrow })} max={60} />
+      {heading("catalogue")}
+      <ProductPicker label="Murtis to show (none ticked shows every murti)" options={products} chosen={catalogue.productIds} onChange={productIds => set("catalogue", { productIds })} max={60} />
+      <Check label="Show the category buttons" hint="Lets customers sort by category. Choosing a category shows every murti in it, not only the ticked ones." checked={catalogue.showFilters} onChange={showFilters => set("catalogue", { showFilters })} />
+      <p className="muted">When hidden, this section still appears if a customer picks a category from the menu or searches.</p>
+    </SectionCard>
     <SectionCard overline="TRUST" title="Why choose us" show={why.show} onShow={show => set("why", { show })}>
       {heading("why")}
+      <Check label="Show a logo on the left" checked={why.showLogo} onChange={showLogo => set("why", { showLogo })} />
+      {why.showLogo && <ImageField label="Logo or icon (empty uses the shop logo)" value={why.logo} onChange={logo => set("why", { logo })} />}
       {why.items.map((item, index) => <div className="editor-row" key={index}>
         <TextField label="Title" value={item.title} max={80} onChange={title => set("why", { items: why.items.map((other, i) => i === index ? { ...other, title } : other) })} />
         <TextField label="Text" value={item.text} max={240} rows={2} onChange={text => set("why", { items: why.items.map((other, i) => i === index ? { ...other, text } : other) })} />
         <button className="text-button" type="button" onClick={() => set("why", { items: why.items.filter((_, i) => i !== index) })}>Remove</button>
       </div>)}
       <button className="secondary" type="button" disabled={why.items.length >= 8} onClick={() => set("why", { items: [...why.items, { title: "", text: "" }] })}>+ Add reason</button>
+      <p className="muted">4 or 5 short reasons look best.</p>
     </SectionCard>
     <SectionCard overline="CUSTOMERS" title="Reviews and videos" show={reviews.show} onShow={show => set("reviews", { show })}>
       {heading("reviews")}
       <Check label="Show written reviews" checked={reviews.showText} onChange={showText => set("reviews", { showText })} />
       <Check label="Show video reviews" checked={reviews.showVideo} onChange={showVideo => set("reviews", { showVideo })} />
-      <p className="muted">Add reviews in the Reviews section and tick "Show on home page". Video covers come from the video automatically.</p>
+      <p className="muted">Add reviews in the Reviews section and tick "Show on home page". Video covers come from the video automatically. The "Follow on Instagram" button beside the title uses the account in Settings → Shop.</p>
     </SectionCard>
     <SectionCard overline="ABOUT" title="Our Story" show={story.show} onShow={show => set("story", { show })}>
       <ToggleText label="Title" show={story.showTitle} onShow={showTitle => set("story", { showTitle })} value={story.title} onChange={title => set("story", { title })} max={120} />
