@@ -6,7 +6,8 @@ type PaymentStatus = { mode: "test" | "live" | "unconfigured"; secretSet: boolea
 function describe(status: PaymentStatus): { chip: string; tone: "success" | "warning" | "danger"; detail: string } {
   if (status.mode === "test" && status.checkoutOpen) return { chip: "Test mode", tone: "warning", detail: "Customers can go through checkout, but no real money is taken. Orders are test activity, not live sales." };
   if (status.mode === "test") return { chip: "Not ready", tone: "danger", detail: "A test key is set, but its secret is missing, so checkout can't take payments." };
-  if (status.mode === "live") return { chip: "Live key set", tone: "warning", detail: "A live key is set, but checkout only accepts test keys for now, so customers can't pay yet." };
+  if (status.mode === "live" && status.checkoutOpen) return { chip: "Live", tone: "success", detail: "Customers pay with real money. Orders are real sales." };
+  if (status.mode === "live") return { chip: "Not ready", tone: "danger", detail: "A live key is set, but its secret is missing, so checkout can't take payments." };
   return { chip: "Not set up", tone: "danger", detail: "No Razorpay key is set, so checkout can't take payments." };
 }
 
@@ -30,7 +31,7 @@ export function PaymentStatusPanel() {
     {!status || !summary ? !error && <p className="muted">Checking payment status…</p> : <>
       <p className="muted">{summary.detail}</p>
       <dl className="payment-status-list">
-        <div><dt>Customer checkout</dt><dd>{status.checkoutOpen ? "Open for test payments" : "Can't take payments"}</dd></div>
+        <div><dt>Customer checkout</dt><dd>{!status.checkoutOpen ? "Can't take payments" : status.mode === "live" ? "Taking real payments" : "Open for test payments"}</dd></div>
         <div><dt>Automatic payment updates</dt><dd>{status.webhookSet ? "Set up" : "Not set up"}<small>{status.webhookSet ? "Razorpay can tell the shop about a payment directly." : "If a customer closes the page right after paying, the order can stay unconfirmed until it's checked again."}</small></dd></div>
       </dl>
       <small className="field-hint">This is read-only. Razorpay keys are kept in the server's settings and are never shown here.</small>
