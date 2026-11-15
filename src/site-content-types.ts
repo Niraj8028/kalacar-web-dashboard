@@ -12,7 +12,7 @@ export type HomeContent = {
   comingSoon: { show: boolean; showTitle: boolean; title: string; showDescription: boolean; description: string; items: { name: string; image: string }[] };
   collections: { show: boolean; showTitle: boolean; title: string; showDescription: boolean; description: string };
   catalogue: CatalogueSection;
-  why: { show: boolean; showTitle: boolean; title: string; showDescription: boolean; description: string; items: { title: string; text: string }[]; showLogo: boolean; logo: string };
+  why: { show: boolean; showTitle: boolean; title: string; showDescription: boolean; description: string; items: { title: string; text: string; icon?: string }[]; showLogo: boolean; logo: string };
   reviews: { show: boolean; showTitle: boolean; title: string; showDescription: boolean; description: string; showText: boolean; showVideo: boolean };
   spotlight: SpotlightSection;
   story: { show: boolean; showTitle: boolean; title: string; showText: boolean; text: string; showImage: boolean; image: string; showFounder: boolean; founder: string };
@@ -28,7 +28,9 @@ export type ProductPageContent = {
   stickyBar: { show: boolean };
   endLink: { show: boolean; label: string; link: string };
   whatsappHelp: { show: boolean; label: string };
+  eyebrow: { show: boolean; text: string };
 };
+export const DEFAULT_EYEBROW = { show: true, text: "{category} · SMALL DEVOTIONAL MURTI" };
 export type ProductOption = { id: string; name: string };
 export const DEFAULT_ACTIVITY: Pick<ProductPageContent, "viewers" | "recentSales" | "soldThisWeek"> = {
   viewers: { show: false, minimum: 2 },

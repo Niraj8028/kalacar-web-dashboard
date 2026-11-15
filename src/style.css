@@ -321,3 +321,4 @@ footer{margin-top:8px;font-size:12px;color:var(--muted)}
 .extra-categories { display: grid; gap: 8px; margin: 0; padding: 12px; border: 1px solid var(--line, #e3d9cc); border-radius: 8px; }
 .extra-categories legend { padding: 0 4px; font-weight: 600; }
 .extra-categories > div { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.footer-link-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
