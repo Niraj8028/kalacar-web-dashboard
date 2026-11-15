@@ -123,12 +123,14 @@ export function HomeEditor({ products }: { products: ProductOption[] }) {
       {heading("why")}
       <Check label="Show a logo on the left" checked={why.showLogo} onChange={showLogo => set("why", { showLogo })} />
       {why.showLogo && <ImageField label="Logo or icon (empty uses the shop logo)" value={why.logo} onChange={logo => set("why", { logo })} />}
+      <p className="muted">Reasons show as cards, two per row. Each can have a small icon on the left; a square PNG with a transparent background works best.</p>
       {why.items.map((item, index) => <div className="editor-row" key={index}>
         <TextField label="Title" value={item.title} max={80} onChange={title => set("why", { items: why.items.map((other, i) => i === index ? { ...other, title } : other) })} />
         <TextField label="Text" value={item.text} max={240} rows={2} onChange={text => set("why", { items: why.items.map((other, i) => i === index ? { ...other, text } : other) })} />
+        <ImageField label="Icon (optional)" value={item.icon ?? ""} onChange={icon => set("why", { items: why.items.map((other, i) => i === index ? { ...other, icon } : other) })} />
         <button className="text-button" type="button" onClick={() => set("why", { items: why.items.filter((_, i) => i !== index) })}>Remove</button>
       </div>)}
-      <button className="secondary" type="button" disabled={why.items.length >= 8} onClick={() => set("why", { items: [...why.items, { title: "", text: "" }] })}>+ Add reason</button>
+      <button className="secondary" type="button" disabled={why.items.length >= 8} onClick={() => set("why", { items: [...why.items, { title: "", text: "", icon: "" }] })}>+ Add reason</button>
       <p className="muted">4 or 5 short reasons look best.</p>
     </SectionCard>
     <SectionCard overline="CUSTOMERS" title="Reviews and videos" show={reviews.show} onShow={show => set("reviews", { show })}>

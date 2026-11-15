@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { errorText, getJson, sendJson } from "./admin-api";
 import { Check, ImageField, SaveBar, TextField } from "./editor-fields";
-import { DEFAULT_ACTIVITY } from "./site-content-types";
+import { DEFAULT_ACTIVITY, DEFAULT_EYEBROW } from "./site-content-types";
 import type { ProductPageContent } from "./site-content-types";
 
 const ACTIVITY_KEYS = ["viewers", "recentSales", "soldThisWeek"] as const;
-const withActivityDefaults = (page: ProductPageContent): ProductPageContent => ({ ...page, viewers: { ...DEFAULT_ACTIVITY.viewers, ...page.viewers }, recentSales: { ...DEFAULT_ACTIVITY.recentSales, ...page.recentSales }, soldThisWeek: { ...DEFAULT_ACTIVITY.soldThisWeek, ...page.soldThisWeek } });
+const withActivityDefaults = (page: ProductPageContent): ProductPageContent => ({ ...page, viewers: { ...DEFAULT_ACTIVITY.viewers, ...page.viewers }, recentSales: { ...DEFAULT_ACTIVITY.recentSales, ...page.recentSales }, soldThisWeek: { ...DEFAULT_ACTIVITY.soldThisWeek, ...page.soldThisWeek }, eyebrow: { ...DEFAULT_EYEBROW, ...page.eyebrow } });
 const isActivity = (key: string) => (ACTIVITY_KEYS as readonly string[]).includes(key);
 
 /**
@@ -28,7 +28,7 @@ export function ProductPageSettingsPanel({ part = "page" }: { part?: "page" | "a
   const shell = (children: React.ReactNode) => <section className={`panel settings-card${dirty ? " dirty" : ""}`} aria-labelledby={titleId}><div className="panel-head"><div><p className="overline">{part === "activity" ? "WHOLE SHOP" : "EVERY PRODUCT"}</p><h2 id={titleId}>{part === "activity" ? "Shop activity" : "Product page settings"}</h2></div></div>{children}</section>;
   if (!draft || !saved) return shell(error ? <p className="order-detail-error" role="alert">{error}</p> : <p className="muted">Loading settings…</p>);
   const set = <K extends keyof ProductPageContent>(key: K, change: Partial<ProductPageContent[K]>) => { setDraft(current => current && { ...current, [key]: { ...current[key], ...change } }); setMessage(""); };
-  const { offer, howMade, faqs, viewers, recentSales, soldThisWeek, lowStock, stickyBar, endLink, whatsappHelp } = draft;
+  const { offer, howMade, faqs, viewers, recentSales, soldThisWeek, lowStock, stickyBar, endLink, whatsappHelp, eyebrow } = draft;
   async function save() {
     setBusy(true); setError(""); setMessage("");
     try {
@@ -68,6 +68,7 @@ export function ProductPageSettingsPanel({ part = "page" }: { part?: "page" | "a
   </>);
   return shell(<>
     <p className="muted">These appear on every product. Description, bundles and reviews are set per product. Pop-ups, viewers and sold counts are in Settings → Activity.</p>
+    <fieldset className="editor-group"><legend>Line above the product name</legend><Check label="Show this line" checked={eyebrow.show} onChange={show => set("eyebrow", { show })} /><TextField label="Text" value={eyebrow.text} max={80} onChange={text => set("eyebrow", { text })} hint="{category} becomes the product's category, e.g. “Krishna · SMALL DEVOTIONAL MURTI”." /></fieldset>
     <fieldset className="editor-group"><legend>Offer under Add to bag</legend><Check label="Show the offer" checked={offer.show} onChange={show => set("offer", { show })} /><TextField label="Title" value={offer.title} max={60} onChange={title => set("offer", { title })} /><TextField label="Offer text" value={offer.text} max={240} rows={2} placeholder="e.g. ₹200 off on orders above ₹1,500. Use code…" onChange={text => set("offer", { text })} hint="Make sure a matching coupon exists in Coupons." /></fieldset>
     <fieldset className="editor-group"><legend>How it's made</legend><Check label="Show this section" checked={howMade.show} onChange={show => set("howMade", { show })} /><TextField label="Title" value={howMade.title} max={80} onChange={title => set("howMade", { title })} /><TextField label="Founder's message" value={howMade.message} max={1200} rows={4} onChange={message => set("howMade", { message })} /><TextField label="Founder's name" value={howMade.founder} max={80} onChange={founder => set("howMade", { founder })} /><Check label="Show photo" checked={howMade.showImage} onChange={showImage => set("howMade", { showImage })} /><ImageField label="Founder photo" value={howMade.image} onChange={image => set("howMade", { image })} /></fieldset>
     <fieldset className="editor-group"><legend>FAQs</legend><Check label="Show FAQs" checked={faqs.show} onChange={show => set("faqs", { show })} /><TextField label="Title" value={faqs.title} max={80} onChange={title => set("faqs", { title })} />

@@ -36,7 +36,7 @@ function PageEditor({ page, onSaved, shopLink }: { page: SitePage; onSaved: (pag
     <TextField label="Short intro" value={draft.intro} max={300} rows={2} onChange={intro => edit({ intro })} />
     <div className="editor-field"><span>Page content</span><RichText label={`${page.title} content`} value={draft.content} onChange={content => edit({ content })} /></div>
     <Check label="Page is live" checked={draft.published} onChange={published => edit({ published })} hint="Turned off, the page can't be opened." />
-    <Check label="Show in the footer" checked={draft.inFooter} onChange={inFooter => edit({ inFooter })} />
+    <Check label="Show in the footer" checked={draft.inFooter} onChange={inFooter => edit({ inFooter })} hint="Used while footer links are automatic. To choose and order them yourself, use Settings → Footer and menus." />
     <TextField label="SEO title (for Google)" value={draft.seoTitle} max={70} placeholder={`${draft.title} — Kalacar`} onChange={seoTitle => edit({ seoTitle })} hint={`${draft.seoTitle.length}/70. Leave empty to use the page title.`} />
     <TextField label="Meta description (for Google)" value={draft.seoDescription} max={170} rows={2} onChange={seoDescription => edit({ seoDescription })} hint={`${draft.seoDescription.length}/170`} />
     <SaveBar dirty={dirty} busy={busy} message={message} error={error} onUndo={() => { setDraft(page); setMessage(""); setError(""); }} onSave={() => void save()} label="Save page" />
