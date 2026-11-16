@@ -48,6 +48,7 @@ export async function mockApi(page: Page, over: Partial<ApiState> = {}) {
     if (path === "/api/admin/site-content") return json(route, { home: state.home, productPage: PRODUCT_PAGE });
     if (path === "/api/admin/pages") return json(route, { pages: PAGES });
     if (path.startsWith("/api/admin/pages/") && request.method() === "PATCH") { const body = request.postDataJSON() as object; state.saved.push(body); return json(route, { page: { ...PAGES[0], ...body } }); }
+    if (path.startsWith("/api/admin/reviews/") && request.method() === "PATCH") { state.saved.push({ review: request.postDataJSON() }); return json(route, { ok: true }); }
     if (path === "/api/admin/reviews" && request.method() === "POST") { state.saved.push(request.postDataJSON() as object); return json(route, { ok: true }, 201); }
     if (path === "/api/admin/reviews") return json(route, { reviews: state.reviews });
     if (path === "/api/admin/inquiries") return json(route, { inquiries: state.inquiries });

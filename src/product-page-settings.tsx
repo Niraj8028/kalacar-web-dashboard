@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { errorText, getJson, sendJson } from "./admin-api";
 import { Check, ImageField, SaveBar, TextField } from "./editor-fields";
-import { DEFAULT_ACTIVITY, DEFAULT_EYEBROW } from "./site-content-types";
+import { DEFAULT_ACTIVITY, DEFAULT_EYEBROW, DEFAULT_GOOGLE_REVIEWS, DEFAULT_STOCK_COUNT } from "./site-content-types";
 import type { ProductPageContent } from "./site-content-types";
 
 const ACTIVITY_KEYS = ["viewers", "recentSales", "soldThisWeek"] as const;
-const withActivityDefaults = (page: ProductPageContent): ProductPageContent => ({ ...page, viewers: { ...DEFAULT_ACTIVITY.viewers, ...page.viewers }, recentSales: { ...DEFAULT_ACTIVITY.recentSales, ...page.recentSales }, soldThisWeek: { ...DEFAULT_ACTIVITY.soldThisWeek, ...page.soldThisWeek }, eyebrow: { ...DEFAULT_EYEBROW, ...page.eyebrow } });
+const withActivityDefaults = (page: ProductPageContent): ProductPageContent => ({ ...page, viewers: { ...DEFAULT_ACTIVITY.viewers, ...page.viewers }, recentSales: { ...DEFAULT_ACTIVITY.recentSales, ...page.recentSales }, soldThisWeek: { ...DEFAULT_ACTIVITY.soldThisWeek, ...page.soldThisWeek }, eyebrow: { ...DEFAULT_EYEBROW, ...page.eyebrow }, stockCount: { ...DEFAULT_STOCK_COUNT, ...page.stockCount }, googleReviews: { ...DEFAULT_GOOGLE_REVIEWS, ...page.googleReviews } });
 const isActivity = (key: string) => (ACTIVITY_KEYS as readonly string[]).includes(key);
 
 /**
@@ -28,7 +28,7 @@ export function ProductPageSettingsPanel({ part = "page" }: { part?: "page" | "a
   const shell = (children: React.ReactNode) => <section className={`panel settings-card${dirty ? " dirty" : ""}`} aria-labelledby={titleId}><div className="panel-head"><div><p className="overline">{part === "activity" ? "WHOLE SHOP" : "EVERY PRODUCT"}</p><h2 id={titleId}>{part === "activity" ? "Shop activity" : "Product page settings"}</h2></div></div>{children}</section>;
   if (!draft || !saved) return shell(error ? <p className="order-detail-error" role="alert">{error}</p> : <p className="muted">Loading settings…</p>);
   const set = <K extends keyof ProductPageContent>(key: K, change: Partial<ProductPageContent[K]>) => { setDraft(current => current && { ...current, [key]: { ...current[key], ...change } }); setMessage(""); };
-  const { offer, howMade, faqs, viewers, recentSales, soldThisWeek, lowStock, stickyBar, endLink, whatsappHelp, eyebrow } = draft;
+  const { offer, howMade, faqs, viewers, recentSales, soldThisWeek, lowStock, stickyBar, endLink, whatsappHelp, eyebrow, stockCount, googleReviews } = draft;
   async function save() {
     setBusy(true); setError(""); setMessage("");
     try {
@@ -74,6 +74,7 @@ export function ProductPageSettingsPanel({ part = "page" }: { part?: "page" | "a
     <fieldset className="editor-group"><legend>FAQs</legend><Check label="Show FAQs" checked={faqs.show} onChange={show => set("faqs", { show })} /><TextField label="Title" value={faqs.title} max={80} onChange={title => set("faqs", { title })} />
       {faqs.items.map((item, index) => <div className="editor-row" key={index}><TextField label="Question" value={item.question} max={160} onChange={question => set("faqs", { items: faqs.items.map((other, i) => i === index ? { ...other, question } : other) })} /><TextField label="Answer" value={item.answer} max={800} rows={2} onChange={answer => set("faqs", { items: faqs.items.map((other, i) => i === index ? { ...other, answer } : other) })} /><button className="text-button" type="button" onClick={() => set("faqs", { items: faqs.items.filter((_, i) => i !== index) })}>Remove</button></div>)}
       <button className="secondary" type="button" disabled={faqs.items.length >= 20} onClick={() => set("faqs", { items: [...faqs.items, { question: "", answer: "" }] })}>+ Add question</button></fieldset>
+    <fieldset className="editor-group"><legend>Stock and reviews</legend><Check label="Show how many are in stock" hint="Off: shoppers see only “In stock” or “Out of stock”, never the number left. The low stock message below shows only when this is on." checked={stockCount.show} onChange={show => set("stockCount", { show })} /><Check label="Google reviews section" hint="The same Google reviews as the home page, shown near the end of every product page." checked={googleReviews.show} onChange={show => set("googleReviews", { show })} /></fieldset>
     <fieldset className="editor-group"><legend>Low stock message</legend><label className="editor-field">Show when stock is at or below<input type="number" min={0} max={100} value={lowStock.threshold} onChange={event => set("lowStock", { threshold: Number(event.target.value) })} /></label><TextField label="Message" value={lowStock.text} max={80} onChange={text => set("lowStock", { text })} hint="{count} becomes the real number left." /></fieldset>
     <fieldset className="editor-group"><legend>Page extras</legend><Check label="Sticky Add to bag bar when scrolling" checked={stickyBar.show} onChange={show => set("stickyBar", { show })} /><Check label="Button at the end of the page" checked={endLink.show} onChange={show => set("endLink", { show })} /><TextField label="Button text" value={endLink.label} max={60} onChange={label => set("endLink", { label })} /><TextField label="Button link" value={endLink.link} max={300} onChange={link => set("endLink", { link })} /><Check label="WhatsApp help button" checked={whatsappHelp.show} onChange={show => set("whatsappHelp", { show })} /><TextField label="WhatsApp button text" value={whatsappHelp.label} max={80} onChange={label => set("whatsappHelp", { label })} /></fieldset>
     {saveBar}

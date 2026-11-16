@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { errorText, getJson, sendJson } from "./admin-api";
 import type { Category } from "./categories";
 import { Check, ImageField, SaveBar, SectionCard, TextField, ToggleText } from "./editor-fields";
-import { DEFAULT_CATALOGUE, DEFAULT_SPOTLIGHT, MAX_HERO_SLIDES, NEW_HERO_SLIDE } from "./site-content-types";
+import { DEFAULT_CATALOGUE, DEFAULT_SPOTLIGHT, MAX_HERO_SLIDES, NEW_HERO_SLIDE, SUGGESTED_WHY } from "./site-content-types";
 import type { HeroSlide, HomeContent, ProductOption } from "./site-content-types";
 
 function ProductPicker({ label, options, chosen, onChange, max }: { label: string; options: ProductOption[]; chosen: string[]; onChange: (ids: string[]) => void; max: number }) {
@@ -131,6 +131,8 @@ export function HomeEditor({ products }: { products: ProductOption[] }) {
         <button className="text-button" type="button" onClick={() => set("why", { items: why.items.filter((_, i) => i !== index) })}>Remove</button>
       </div>)}
       <button className="secondary" type="button" disabled={why.items.length >= 8} onClick={() => set("why", { items: [...why.items, { title: "", text: "", icon: "" }] })}>+ Add reason</button>
+      <button className="text-button" type="button" onClick={() => set("why", { showDescription: true, description: SUGGESTED_WHY.description, items: SUGGESTED_WHY.items.map((item, i) => ({ ...item, icon: why.items[i]?.icon ?? "" })) })}>Use suggested text</button>
+      <p className="muted">“Use suggested text” fills the description and 4 reasons written for Kalacar, keeping any icons. Change anything, then save.</p>
       <p className="muted">4 or 5 short reasons look best.</p>
     </SectionCard>
     <SectionCard overline="CUSTOMERS" title="Reviews and videos" show={reviews.show} onShow={show => set("reviews", { show })}>

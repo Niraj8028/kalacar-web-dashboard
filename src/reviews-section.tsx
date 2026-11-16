@@ -5,9 +5,9 @@ import { Check, ImageField, TextField } from "./editor-fields";
 import { useLiveRevision } from "./realtime";
 import type { ProductOption } from "./site-content-types";
 
-type Review = { id: number; productId: string | null; author: string; city: string; rating: number; text: string; photos: string[]; videoUrl: string; showOnHome: boolean; published: boolean };
+type Review = { id: number; productId: string | null; author: string; city: string; rating: number; text: string; photos: string[]; videoUrl: string; showOnHome: boolean; showOnProduct: boolean; published: boolean };
 type Draft = Omit<Review, "id"> & { id?: number };
-const BLANK: Draft = { productId: null, author: "", city: "", rating: 5, text: "", photos: [], videoUrl: "", showOnHome: false, published: true };
+const BLANK: Draft = { productId: null, author: "", city: "", rating: 5, text: "", photos: [], videoUrl: "", showOnHome: false, showOnProduct: true, published: true };
 
 function ReviewForm({ review, products, onDone, onCancel }: { review: Draft; products: ProductOption[]; onDone: () => void; onCancel: () => void }) {
   const [draft, setDraft] = useState(review);
@@ -33,6 +33,7 @@ function ReviewForm({ review, products, onDone, onCancel }: { review: Draft; pro
       {draft.photos.length < 6 && <ImageField label="Add a customer photo" value="" onChange={url => { if (url) edit({ photos: [...draft.photos, url] }); }} />}
     </div>
     <Check label="Show on home page" checked={draft.showOnHome} onChange={showOnHome => edit({ showOnHome })} />
+    {draft.productId && <Check label="Show in the reviews list on the product page" hint="Off still counts this review in the product’s stars and review count, but leaves it out of the list." checked={draft.showOnProduct} onChange={showOnProduct => edit({ showOnProduct })} />}
     <Check label="Published" checked={draft.published} onChange={published => edit({ published })} />
     {error && <p className="order-detail-error" role="alert">{error}</p>}
     <div className="settings-actions"><button className="text-button" type="button" disabled={busy} onClick={onCancel}>Cancel</button><button className="primary" type="button" disabled={busy} onClick={() => void save()}>{busy ? "Saving…" : "Save review"}</button></div>
@@ -49,6 +50,11 @@ export function ReviewsSection({ products }: { products: ProductOption[] }) {
     getJson<{ reviews: Review[] }>("/api/admin/reviews", "Reviews are unavailable right now.").then(data => { if (active) { setReviews(data.reviews); setError(""); } }).catch(cause => { if (active) setError(errorText(cause, "Reviews are unavailable right now.")); });
     return () => { active = false; };
   }, [revision]);
+  async function toggleProduct(review: Review, showOnProduct: boolean) {
+    setReviews(current => current?.map(other => other.id === review.id ? { ...other, showOnProduct } : other) ?? null);
+    try { await sendJson(`/api/admin/reviews/${review.id}`, "PATCH", { ...review, showOnProduct }); }
+    catch (cause) { setReviews(current => current?.map(other => other.id === review.id ? { ...other, showOnProduct: review.showOnProduct } : other) ?? null); setError(errorText(cause, "Could not save the review.")); }
+  }
   async function remove(id: number) {
     if (!window.confirm("Delete this review?")) return;
     try { await sendJson(`/api/admin/reviews/${id}`, "DELETE"); setReviews(current => current?.filter(review => review.id !== id) ?? null); }
@@ -61,7 +67,7 @@ export function ReviewsSection({ products }: { products: ProductOption[] }) {
     {error && <p className="order-detail-error" role="alert">{error}</p>}
     <section className="panel editor-list">{!reviews ? !error && <p className="empty-orders">Loading reviews…</p> : !reviews.length ? <p className="empty-orders">No reviews yet.</p> : reviews.map(review => <article className="editor-list-row" key={review.id}>
       <div><b>{review.author}{review.city && `, ${review.city}`}</b><small>{nameOf(review.productId)} · {review.rating} {review.rating === 1 ? "star" : "stars"}{review.videoUrl && " · video"}{review.photos.length > 0 && ` · ${review.photos.length} ${review.photos.length === 1 ? "photo" : "photos"}`}</small>{review.text && <p>{review.text}</p>}</div>
-      <div className="editor-list-actions">{!review.published && <StatusChip>Hidden</StatusChip>}{review.showOnHome && <StatusChip tone="success">Home page</StatusChip>}<button className="secondary" type="button" onClick={() => setEditing(review)}>Edit</button><button className="text-button" type="button" onClick={() => void remove(review.id)}>Delete</button></div>
+      <div className="editor-list-actions">{!review.published && <StatusChip>Hidden</StatusChip>}{review.showOnHome && <StatusChip tone="success">Home page</StatusChip>}{review.productId && <Check label="Product page" checked={review.showOnProduct !== false} onChange={next => void toggleProduct(review, next)} />}<button className="secondary" type="button" onClick={() => setEditing(review)}>Edit</button><button className="text-button" type="button" onClick={() => void remove(review.id)}>Delete</button></div>
     </article>)}</section>
   </>;
 }
