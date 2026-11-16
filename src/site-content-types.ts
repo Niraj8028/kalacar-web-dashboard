@@ -29,8 +29,23 @@ export type ProductPageContent = {
   endLink: { show: boolean; label: string; link: string };
   whatsappHelp: { show: boolean; label: string };
   eyebrow: { show: boolean; text: string };
+  stockCount: { show: boolean };
+  googleReviews: { show: boolean };
 };
 export const DEFAULT_EYEBROW = { show: true, text: "{category} · SMALL DEVOTIONAL MURTI" };
+/** Same as the shop: the number in stock is hidden until turned on; Google reviews show. */
+export const DEFAULT_STOCK_COUNT = { show: false };
+export const DEFAULT_GOOGLE_REVIEWS = { show: true };
+/** Suggested "Why choose" text, matching the shop's built-in text. */
+export const SUGGESTED_WHY = {
+  description: "Small murtis made with devotion, checked and packed by us, and sent safely to your home.",
+  items: [
+    { title: "Made for small spaces", text: "Sized for car dashboards, Devghars and work desks, so Bhagwan stays with you wherever you go." },
+    { title: "Crafted with care", text: "Made by the same hands as our sister studio Murtiverse, with fine detail on every face and ornament." },
+    { title: "Checked before it ships", text: "We look over every murti ourselves before it leaves us, so it reaches you just as it should." },
+    { title: "Packed for a safe journey", text: "Wrapped and boxed with care so your murti arrives safely at your door." },
+  ],
+};
 export type ProductOption = { id: string; name: string };
 export const DEFAULT_ACTIVITY: Pick<ProductPageContent, "viewers" | "recentSales" | "soldThisWeek"> = {
   viewers: { show: false, minimum: 2 },
