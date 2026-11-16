@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { errorText, getJson, sendJson } from "./admin-api";
 import type { Category } from "./categories";
 import { Check, ImageField, SaveBar, SectionCard, TextField, ToggleText } from "./editor-fields";
-import { DEFAULT_CATALOGUE, DEFAULT_SPOTLIGHT, MAX_HERO_SLIDES, NEW_HERO_SLIDE, SUGGESTED_WHY } from "./site-content-types";
+import { DEFAULT_CATALOGUE, DEFAULT_GOOGLE_REVIEWS_HEAD, DEFAULT_SPOTLIGHT, MAX_HERO_SLIDES, NEW_HERO_SLIDE, SUGGESTED_WHY } from "./site-content-types";
 import type { HeroSlide, HomeContent, ProductOption } from "./site-content-types";
 
 function ProductPicker({ label, options, chosen, onChange, max }: { label: string; options: ProductOption[]; chosen: string[]; onChange: (ids: string[]) => void; max: number }) {
@@ -18,7 +18,7 @@ function CategoryImage({ category, onChanged }: { category: Category; onChanged:
 
 /** A shop still on the old single-hero shape: show it as one slide. */
 function withSlides(input: HomeContent): HomeContent {
-  const home = { ...input, catalogue: { ...DEFAULT_CATALOGUE, ...input.catalogue }, why: { ...input.why, showLogo: input.why?.showLogo ?? true, logo: input.why?.logo ?? "" }, spotlight: { ...DEFAULT_SPOTLIGHT, ...input.spotlight, whatsapp: { ...DEFAULT_SPOTLIGHT.whatsapp, ...input.spotlight?.whatsapp } } };
+  const home = { ...input, catalogue: { ...DEFAULT_CATALOGUE, ...input.catalogue }, googleReviews: { ...DEFAULT_GOOGLE_REVIEWS_HEAD, ...input.googleReviews }, why: { ...input.why, showLogo: input.why?.showLogo ?? true, logo: input.why?.logo ?? "" }, spotlight: { ...DEFAULT_SPOTLIGHT, ...input.spotlight, whatsapp: { ...DEFAULT_SPOTLIGHT.whatsapp, ...input.spotlight?.whatsapp } } };
   const hero = home.hero as HomeContent["hero"] & Partial<HeroSlide>;
   if (Array.isArray(hero.slides)) return home;
   const { show, ...slide } = hero as unknown as HeroSlide & { show: boolean };
@@ -63,7 +63,7 @@ export function HomeEditor({ products }: { products: ProductOption[] }) {
   const dirty = useMemo(() => JSON.stringify(saved) !== JSON.stringify(draft), [saved, draft]);
   if (!draft || !saved) return error ? <p className="order-detail-error" role="alert">{error}</p> : <p className="muted">Loading the home page…</p>;
   const set = <K extends keyof HomeContent>(key: K, change: Partial<HomeContent[K]>) => { setDraft(current => current && { ...current, [key]: { ...current[key], ...change } }); setMessage(""); };
-  const { hero, spotlight, firstLaunch, comingSoon, collections, catalogue, why, reviews, story } = draft;
+  const { hero, spotlight, firstLaunch, comingSoon, collections, catalogue, why, googleReviews, reviews, story } = draft;
   const setSlides = (slides: HeroSlide[]) => set("hero", { slides });
   async function save() {
     setBusy(true); setError(""); setMessage("");
@@ -71,7 +71,7 @@ export function HomeEditor({ products }: { products: ProductOption[] }) {
     catch (cause) { setError(errorText(cause, "Could not save the home page.")); }
     finally { setBusy(false); }
   }
-  const heading = (section: "firstLaunch" | "comingSoon" | "collections" | "catalogue" | "why" | "reviews") => <>
+  const heading = (section: "firstLaunch" | "comingSoon" | "collections" | "catalogue" | "why" | "googleReviews" | "reviews") => <>
     <ToggleText label="Section title" show={draft[section].showTitle} onShow={showTitle => set(section, { showTitle })} value={draft[section].title} onChange={title => set(section, { title })} max={120} />
     <ToggleText label="Short description" show={draft[section].showDescription} onShow={showDescription => set(section, { showDescription })} value={draft[section].description} onChange={description => set(section, { description })} max={400} rows={2} />
   </>;
@@ -134,6 +134,11 @@ export function HomeEditor({ products }: { products: ProductOption[] }) {
       <button className="text-button" type="button" onClick={() => set("why", { showDescription: true, description: SUGGESTED_WHY.description, items: SUGGESTED_WHY.items.map((item, i) => ({ ...item, icon: why.items[i]?.icon ?? "" })) })}>Use suggested text</button>
       <p className="muted">“Use suggested text” fills the description and 4 reasons written for Kalacar, keeping any icons. Change anything, then save.</p>
       <p className="muted">4 or 5 short reasons look best.</p>
+    </SectionCard>
+    <SectionCard overline="CUSTOMERS" title="Google reviews" show={googleReviews.show} onShow={show => set("googleReviews", { show })}>
+      <ToggleText label="Small line" show={googleReviews.showEyebrow} onShow={showEyebrow => set("googleReviews", { showEyebrow })} value={googleReviews.eyebrow} onChange={eyebrow => set("googleReviews", { eyebrow })} max={60} />
+      {heading("googleReviews")}
+      <p className="muted">The reviews themselves are real Google reviews of Murtiverse and can't be edited here. Writing "Murtiverse" in the description shows it in bold. The same heading is used on product pages when Google reviews are turned on there.</p>
     </SectionCard>
     <SectionCard overline="CUSTOMERS" title="Reviews and videos" show={reviews.show} onShow={show => set("reviews", { show })}>
       {heading("reviews")}
