@@ -3,6 +3,7 @@ export type HeroSlide = { productId: string; backgroundImage: string; desktopIma
 export const MAX_HERO_SLIDES = 8;
 export const NEW_HERO_SLIDE: HeroSlide = { productId: "", backgroundImage: "", desktopImage: "", showEyebrow: true, eyebrow: "", showTitle: true, title: "", showDescription: true, description: "", buy: { show: true, label: "Buy now", showPrice: true }, explore: { show: true, label: "Explore collections", link: "#catalogue" } };
 export type SpotlightSection = { show: boolean; showTitle: boolean; title: string; showDescription: boolean; description: string; productId: string; image: string; showLogo: boolean; whatsapp: { show: boolean; label: string } };
+export const DEFAULT_GOOGLE_REVIEWS_HEAD: HomeContent["googleReviews"] = { show: true, showEyebrow: true, eyebrow: "Google reviews", showTitle: true, title: "Loved by devotees", showDescription: true, description: "Real Google reviews of Murtiverse, our sister studio. Same hands, same care." };
 export const DEFAULT_SPOTLIGHT: SpotlightSection = { show: false, showTitle: true, title: "Bring home the divine", showDescription: true, description: "", productId: "", image: "", showLogo: true, whatsapp: { show: true, label: "Order on WhatsApp" } };
 export type CatalogueSection = { show: boolean; showEyebrow: boolean; eyebrow: string; showTitle: boolean; title: string; showDescription: boolean; description: string; productIds: string[]; showFilters: boolean };
 export const DEFAULT_CATALOGUE: CatalogueSection = { show: true, showEyebrow: true, eyebrow: "FEATURED", showTitle: true, title: "Murtis for everyday spaces", showDescription: false, description: "", productIds: [], showFilters: false };
@@ -13,6 +14,8 @@ export type HomeContent = {
   collections: { show: boolean; showTitle: boolean; title: string; showDescription: boolean; description: string };
   catalogue: CatalogueSection;
   why: { show: boolean; showTitle: boolean; title: string; showDescription: boolean; description: string; items: { title: string; text: string; icon?: string }[]; showLogo: boolean; logo: string };
+  /** Heading above the fixed Google reviews of Murtiverse. */
+  googleReviews: { show: boolean; showEyebrow: boolean; eyebrow: string; showTitle: boolean; title: string; showDescription: boolean; description: string };
   reviews: { show: boolean; showTitle: boolean; title: string; showDescription: boolean; description: string; showText: boolean; showVideo: boolean };
   spotlight: SpotlightSection;
   story: { show: boolean; showTitle: boolean; title: string; showText: boolean; text: string; showImage: boolean; image: string; showFounder: boolean; founder: string };

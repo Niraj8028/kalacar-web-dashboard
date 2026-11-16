@@ -53,3 +53,19 @@ test("Why choose us: logo on the left can use the shop logo or an uploaded one",
   await showLogo.uncheck();
   await expect(card.getByText("Logo or icon (empty uses the shop logo)")).toHaveCount(0);
 });
+
+test("Google reviews: change the small line, heading and description, and save", async ({ page }) => {
+  const errors = watchErrors(page);
+  const state = await mockApi(page);
+  await page.goto("/pages");
+  const card = page.locator("section", { has: page.getByRole("heading", { name: "Google reviews", exact: true }) });
+  await expect(card.getByRole("checkbox", { name: "Show on site" })).toBeChecked();
+  await expect(card.getByRole("textbox", { name: "Section title" })).toHaveValue("Loved by devotees");
+  await card.getByRole("textbox", { name: "Small line" }).fill("Real reviews");
+  await card.getByRole("textbox", { name: "Section title" }).fill("Trusted by families");
+  await card.getByRole("textbox", { name: "Short description" }).fill("Reviews of Murtiverse, our sister studio.");
+  await page.getByRole("button", { name: "Save home page" }).click();
+  await expect(page.getByText("Saved. The home page is updated.")).toBeVisible();
+  expect(state.saved[0]).toMatchObject({ home: { googleReviews: { show: true, eyebrow: "Real reviews", title: "Trusted by families", description: "Reviews of Murtiverse, our sister studio." } } });
+  expect(errors).toEqual([]);
+});
