@@ -19,6 +19,7 @@ import { ReviewsSection } from "./reviews-section";
 import { FestivePanel } from "./festive-settings";
 import { InstagramPanel } from "./instagram-settings";
 import { LogoPanel } from "./logo-settings";
+import { SeoPanel } from "./seo-settings";
 import { TrackingPanel } from "./tracking-settings";
 import { FooterPanel } from "./footer-settings";
 import { ShopLinkPanel, VisitWebsiteLink, loadShopLink } from "./shop-link";
@@ -29,6 +30,7 @@ import { PrintLabelButton, PrintLabelPanel, useLabelConfig } from "./print-label
 import type { LabelConfig } from "./print-label";
 import type { MessageConfig } from "./messages";
 import { shrinkImage } from "./admin-api";
+import { slugify } from "./permalinks";
 import { AlertIcon, ArrowRight, CheckIcon, ChevronDown, CloseIcon, EnterIcon, OrdersIcon, PackageIcon, RupeeIcon, SearchIcon, SignOutIcon, TrendIcon, sectionIcons } from "./icons";
 
 type ProductAccordion = { id: string; title: string; content: string; format?: "rows" | "text"; active: boolean; defaultOpen: boolean };
@@ -36,7 +38,7 @@ type ProductAccordionRowDraft = { id: string; label: string; value: string };
 type ProductAccordionDraft = ProductAccordion & { mode: "rows" | "text"; rows: ProductAccordionRowDraft[] };
 type ProductImageDraft = { key: string; src?: string; file?: File; preview: string };
 type Colour = { id: string; name: string; swatch: string; gallery: string[]; price: number; originalPrice: number; stock: number; sort: number; active: boolean };
-type Product = { id: string; name: string; deity: string; categories?: string[]; description?: string; bundleIds?: string[]; badge?: string; tagline?: string; specs?: { label: string; value: string }[]; highlights?: string[]; image: string; gallery?: string[]; placement?: string; accordions?: ProductAccordion[]; price: number; stock: number; variants: Colour[] };
+type Product = { id: string; slug?: string; slugCustom?: boolean; name: string; deity: string; categories?: string[]; description?: string; bundleIds?: string[]; badge?: string; tagline?: string; specs?: { label: string; value: string }[]; highlights?: string[]; image: string; gallery?: string[]; placement?: string; accordions?: ProductAccordion[]; price: number; stock: number; variants: Colour[] };
 type Order = { id: string; date: string; customer: string; item: string; total: number; status: string; fulfillmentStatus?: string; trackingNote?: string; trackingCourier?: string; trackingId?: string; giftWrap?: boolean; email?: string; phone?: string; address?: string; pincode?: string };
 type OrderDetail = Order & { items: { id: string; name: string; variant?: string; price: number; quantity: number }[]; giftWrap?: boolean; giftWrapPrice?: number; couponCode?: string; discount?: number; rawStatus: string; trackingNote: string; cancelReason: string; cancelledAt: string | null; refundAmount: number | null; refundReason: string; refundReference: string; refundedAt: string | null };
 type AdminMetrics = { todayRevenue: number; monthRevenue: number; totalOrders: number; paidOrders: number; averageOrderValue: number; lowStockProducts: number; outOfStockProducts: number; lowStockThreshold: number; fulfillmentNeeded: number; paymentRecovery: number; paymentMode: "test" | "live" | "unconfigured" };
@@ -528,6 +530,7 @@ function ProductEditor({ allProducts, product, onCancel, onSaved }: { allProduct
     loadCategories().then(list => { if (active) setCategories(list); }).catch(cause => { if (active) setCategoriesError(cause instanceof Error ? cause.message : "Categories are unavailable right now."); });
     return () => { active = false; };
   }, []);
+  const [permalink, setPermalink] = useState(product?.slugCustom ? product.slug ?? "" : "");
   const [badge, setBadge] = useState(product?.badge ?? "");
   const [tagline, setTagline] = useState(product?.tagline ?? "");
   const [placement, setPlacement] = useState(product?.placement ?? "");
@@ -586,7 +589,7 @@ function ProductEditor({ allProducts, product, onCancel, onSaved }: { allProduct
       if (missing) throw new Error(`Add at least one photo for “${missing.name || "a colour"}”.`);
       if (!colours.some(c => c.active)) throw new Error("Keep at least one colour visible in the shop.");
       const form = new FormData();
-      form.set("name", name); form.set("deity", deity); form.set("extraCategories", JSON.stringify(extraCategories.filter(name => name !== deity))); form.set("badge", badge); form.set("tagline", tagline); form.set("placement", placement); form.set("description", description); form.set("bundleIds", JSON.stringify(bundleIds));
+      form.set("name", name); form.set("permalink", permalink.trim()); form.set("deity", deity); form.set("extraCategories", JSON.stringify(extraCategories.filter(name => name !== deity))); form.set("badge", badge); form.set("tagline", tagline); form.set("placement", placement); form.set("description", description); form.set("bundleIds", JSON.stringify(bundleIds));
       form.set("specs", JSON.stringify(specs.filter(spec => spec.label.trim() || spec.value.trim()).map(({ label, value }) => ({ label: label.trim(), value: value.trim() }))));
       form.set("highlights", JSON.stringify(highlights.map(h => h.text.trim()).filter(Boolean)));
       const savedAccordions: ProductAccordion[] = accordions.map(({ mode, rows, ...section }) => ({ ...section, format: mode, content: mode === "rows" ? rows.filter(row => row.label.trim() && row.value.trim()).map(row => `${row.label.trim()}: ${row.value.trim()}`).join("\n") : section.content }));
@@ -625,6 +628,7 @@ function ProductEditor({ allProducts, product, onCancel, onSaved }: { allProduct
     <div className="panel-head"><div><p className="overline">{product ? "EDIT CATALOGUE ITEM" : "NEW CATALOGUE ITEM"}</p><h2>{product ? `Edit ${product.name}` : "Add a product"}</h2></div><button className="secondary" type="button" onClick={onCancel}>Close</button></div>
     <div className="form-grid">
       <label>Product name<input required minLength={2} maxLength={160} value={name} onChange={e => setName(e.target.value)} /></label>
+      <label className="permalink-field">Permalink (optional)<span className="input-prefix"><span>/products/</span><input maxLength={80} placeholder={slugify(name) || "follows the product name"} value={permalink} onChange={e => setPermalink(e.target.value)} /></span><small className="field-hint">{permalink.trim() ? <>Address: /products/{slugify(permalink) || "…"}. Clear it to follow the product name again.</> : <>Leave empty and the address follows the product name: /products/{slugify(name) || "…"}. It changes when you rename the product.</>} Old addresses keep working.</small></label>
       <label>Category<select required value={deity} disabled={!categories?.length} onChange={e => setDeity(e.target.value)}><option value="" disabled>{categories ? categories.length ? "Choose a category" : "No categories yet" : "Loading categories…"}</option>{categories?.map(category => <option key={category.id} value={category.name}>{category.name}</option>)}</select>{categoriesError ? <small className="fulfillment-error" role="alert">{categoriesError}</small> : <small className="field-hint">Add or rename categories in Settings.</small>}</label>
       {categories && categories.length > 1 && deity && <fieldset className="extra-categories"><legend>Also show under</legend><small className="field-hint">Optional. The murti appears in each ticked category as well as its main one.</small>
         <div>{categories.filter(category => category.name !== deity).map(category => <label key={category.id} className="editor-check"><input type="checkbox" checked={extraCategories.includes(category.name)} onChange={event => setExtraCategories(current => event.target.checked ? [...current, category.name] : current.filter(name => name !== category.name))} /><span>{category.name}</span></label>)}</div>
@@ -904,10 +908,11 @@ function StoreSettings({ onStoreSaved, onShopLinkSaved }: { onStoreSaved: (store
   return <>
     <div className="page-heading"><div><p className="overline">STORE</p><h1>Settings</h1><p className="muted">Choose what you want to change.</p></div></div>
     <SettingsTabs tabs={[
-      { key: "shop", label: "Shop", contains: "Open or closed, banner, website link, logo, Instagram, festival decoration", content: <>
+      { key: "shop", label: "Shop", contains: "Open or closed, banner, website link, logo, website title, favicon, Google description, Instagram, festival decoration", content: <>
         <StoreVisibilityPanel onSaved={onStoreSaved} />
         <ShopLinkPanel onSaved={onShopLinkSaved} />
         <LogoPanel />
+        <SeoPanel />
         <InstagramPanel />
         <FestivePanel />
       </> },
