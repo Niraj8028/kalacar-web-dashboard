@@ -16,9 +16,22 @@ test("Settings > Website title and icon: change the title, description and favic
   await expect(card.getByLabel("Google result preview")).toContainText("Small brass murtis for the car dashboard.");
   await card.getByRole("button", { name: "Save" }).click();
   await expect(card.getByText(/^Saved\./)).toBeVisible();
-  expect(state.saved).toContainEqual({ seo: { title: "Kalacar — Murtis for your car", description: "Small brass murtis for the car dashboard.", favicon: expect.stringMatching(/^\/uploads\//) } });
+  expect(state.saved).toContainEqual({ seo: { title: "Kalacar — Murtis for your car", description: "Small brass murtis for the car dashboard.", favicon: expect.stringMatching(/^\/uploads\//), showOnGoogle: true } });
   await expectFits(page);
   expect(errors).toEqual([]);
+});
+
+test("Settings > Website title and icon: the shop can be hidden from Google and shown again", async ({ page }) => {
+  const state = await mockApi(page);
+  await page.goto("/settings");
+  const card = page.locator("section", { has: page.getByRole("heading", { name: "Website title and icon" }) });
+  const google = card.getByLabel(/Show the shop on Google/);
+  await expect(google).toBeChecked();
+  await google.uncheck();
+  await expect(card.getByText(/Hidden: Google is asked not to list any page/)).toBeVisible();
+  await card.getByRole("button", { name: "Save" }).click();
+  await expect(card.getByText(/^Saved\./)).toBeVisible();
+  expect(state.saved).toContainEqual({ seo: expect.objectContaining({ showOnGoogle: false }) });
 });
 
 test("product permalink follows the name unless one is typed", async ({ page }) => {
