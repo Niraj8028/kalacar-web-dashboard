@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { errorText, getJson, sendJson } from "./admin-api";
-import { ImageField, TextField } from "./editor-fields";
+import { Check, ImageField, TextField } from "./editor-fields";
 
-type Seo = { title: string; description: string; favicon: string };
-const DEFAULT: Seo = { title: "Kalacar — Small Devotional Murtis", description: "Shop small murtis for car dashboards, Devghars, and personal mandirs.", favicon: "" };
-const same = (a: Seo, b: Seo) => a.title === b.title && a.description === b.description && a.favicon === b.favicon;
+type Seo = { title: string; description: string; favicon: string; showOnGoogle: boolean };
+const DEFAULT: Seo = { title: "Kalacar — Small Devotional Murtis", description: "Shop small murtis for car dashboards, Devghars, and personal mandirs.", favicon: "", showOnGoogle: true };
+const same = (a: Seo, b: Seo) => a.title === b.title && a.description === b.description && a.favicon === b.favicon && a.showOnGoogle === b.showOnGoogle;
 
 /** The name on the browser tab, the text Google shows under it, and the little tab icon. */
 export function SeoPanel() {
@@ -25,7 +25,7 @@ export function SeoPanel() {
   async function save() {
     setBusy(true); setError(""); setMessage("");
     try {
-      const data = await sendJson<{ seo: Seo }>("/api/admin/settings", "PATCH", { seo: { title: draft.title.trim(), description: draft.description.trim(), favicon: draft.favicon } });
+      const data = await sendJson<{ seo: Seo }>("/api/admin/settings", "PATCH", { seo: { title: draft.title.trim(), description: draft.description.trim(), favicon: draft.favicon, showOnGoogle: draft.showOnGoogle } });
       const seo = { ...DEFAULT, ...data.seo };
       setSaved(seo); setDraft(seo);
       setMessage("Saved. Reload the shop to see the new title and icon. Google updates its results on its next visit, which can take a few days.");
@@ -36,6 +36,7 @@ export function SeoPanel() {
   return <section className={`panel settings-card${dirty ? " dirty" : ""}`} aria-labelledby="seo-title">
     <div className="panel-head"><div><p className="overline">BROWSER TAB AND GOOGLE</p><h2 id="seo-title">Website title and icon</h2></div></div>
     {saved === null ? !error && <p className="muted">Loading…</p> : <div className="setting-stack">
+      <Check label="Show the shop on Google" checked={draft.showOnGoogle} onChange={showOnGoogle => change({ showOnGoogle })} hint={draft.showOnGoogle ? "Google can list the shop and every product page. New pages usually appear within a few days to two weeks." : "Hidden: Google is asked not to list any page. Turn this on when the shop is ready."} />
       <TextField label="Website title" value={draft.title} max={120} onChange={value => change({ title: value })} hint={`Shown on the browser tab and as the blue heading in Google. Under 60 letters reads best (now ${title.length}).`} />
       <TextField label="Description" value={draft.description} rows={3} max={300} onChange={value => change({ description: value })} hint={`The grey text under the title in Google. About 150 letters reads best (now ${draft.description.trim().length}).`} />
       <ImageField label="Favicon (tab icon)" value={draft.favicon} onChange={favicon => change({ favicon })} />
