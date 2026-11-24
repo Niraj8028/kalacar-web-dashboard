@@ -35,14 +35,17 @@ export type ProductPageContent = {
   stockCount: { show: boolean };
   googleReviews: { show: boolean };
   /** "Delivered in {estimate}." on the product page, bag, checkout, order confirmed and the order email; `free` adds "Free delivery". */
-  delivery: { estimate: string; note: string; free: { show: boolean; text: string } };
+  delivery: { estimate: string; note: string; free: { show: boolean; text: string }; freeUnderStock: { show: boolean } };
+  /** Off hides the green "In stock" in the buy box; low stock and out of stock messages still show. */
+  inStock: { show: boolean };
 };
 export const DEFAULT_EYEBROW = { show: true, text: "{category} · SMALL DEVOTIONAL MURTI" };
 /** Same as the shop: the number in stock is hidden until turned on; Google reviews show. */
 export const DEFAULT_STOCK_COUNT = { show: false };
 export const DEFAULT_GOOGLE_REVIEWS = { show: true };
 /** Same as the shop's built-in delivery wording. */
-export const DEFAULT_DELIVERY: ProductPageContent["delivery"] = { estimate: "3–7 business days", note: "Carefully chosen, packed and shipped by us.", free: { show: true, text: "Free delivery across India" } };
+export const DEFAULT_DELIVERY: ProductPageContent["delivery"] = { estimate: "3–7 business days", note: "Carefully chosen, packed and shipped by us.", free: { show: true, text: "Free delivery across India" }, freeUnderStock: { show: false } };
+export const DEFAULT_IN_STOCK = { show: true };
 /** Suggested "Why choose" text, matching the shop's built-in text. */
 export const SUGGESTED_WHY = {
   description: "Small murtis made with devotion, checked and packed by us, and sent safely to your home.",

@@ -22,12 +22,16 @@ test("product page settings: delivery time and free delivery", async ({ page }) 
   await page.goto("/settings?tab=products");
   const time = page.getByRole("textbox", { name: /^Delivery time/ });
   await expect(time).toHaveValue("3–7 business days");
-  await expect(page.getByRole("checkbox", { name: /Show “Free delivery”/ })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: /Show “Free delivery” in the delivery line/ })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: /Also show “Free delivery” under “In stock”/ })).not.toBeChecked();
+  await expect(page.getByRole("checkbox", { name: /^Show “In stock”/ })).toBeChecked();
   await time.fill("4–6 business days");
-  await page.getByRole("checkbox", { name: /Show “Free delivery”/ }).uncheck();
+  await page.getByRole("checkbox", { name: /Show “Free delivery” in the delivery line/ }).uncheck();
+  await page.getByRole("checkbox", { name: /Also show “Free delivery” under “In stock”/ }).check();
+  await page.getByRole("checkbox", { name: /^Show “In stock”/ }).uncheck();
   await page.locator("section", { has: page.getByRole("heading", { name: "Product page settings" }) }).getByRole("button", { name: /^Save/ }).click();
   await expect.poll(() => state.saved.find(item => "productPage" in item)).toBeTruthy();
-  expect((state.saved.find(item => "productPage" in item) as { productPage: object }).productPage).toMatchObject({ delivery: { estimate: "4–6 business days", free: { show: false, text: "Free delivery across India" } } });
+  expect((state.saved.find(item => "productPage" in item) as { productPage: object }).productPage).toMatchObject({ delivery: { estimate: "4–6 business days", free: { show: false, text: "Free delivery across India" }, freeUnderStock: { show: true } }, inStock: { show: false } });
 });
 
 test("each product review can be left out of the product page list", async ({ page }) => {
