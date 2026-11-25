@@ -5,7 +5,7 @@ const colour = (id: string, name: string, stock: number, active = true) => ({ id
 const product = (id: string, name: string, deity: string, variants: ReturnType<typeof colour>[]) => ({ id, name, deity, image: "/favicon.svg", gallery: ["/favicon.svg"], price: 999, stock: variants.reduce((sum, v) => sum + v.stock, 0), variants, specs: [], highlights: [], accordions: [] });
 export const order = (id: string, customer: string, status: string, over: object = {}) => ({ id, date: "6 Nov 2026", customer, item: "Test murti · 1", total: 999, status, fulfillmentStatus: "unfulfilled", email: "buyer@example.test", phone: "9876543210", address: "Test address", pincode: "411001", ...over });
 const T = (word: string) => ({ whatsapp: `WhatsApp ${word} {order_id}`, sms: `SMS ${word} {order_id}`, emailSubject: `Order {order_id} ${word}`, emailBody: `Hi {customer_name}, ${word}` });
-const templates = { unfulfilled: T("received"), processing: T("preparing"), dispatched: { ...T("sent"), sms: "Sent by {courier}, ID {tracking_id}" }, completed: { ...T("done"), sms: "" } };
+const templates = { unfulfilled: T("received"), processing: T("preparing"), dispatched: { ...T("sent"), sms: "Sent by {courier}, ID {tracking_id}" }, completed: { ...T("done"), sms: "" }, unpaid: T("unpaid") };
 const label = { deliverTo: "{customer_name}", from: "Kalacar", details: "{order_id}" };
 
 export const SLIDE = { productId: "", backgroundImage: "", desktopImage: "", showEyebrow: true, eyebrow: "THE SHOP", showTitle: true, title: "Hero title", showDescription: true, description: "Hero text", buy: { show: true, label: "Buy now", showPrice: true }, explore: { show: true, label: "Explore", link: "#catalogue" } };
@@ -57,6 +57,14 @@ export async function mockApi(page: Page, over: Partial<ApiState> = {}) {
     // Product saves arrive as a form; the test reads the fields it cares about from this.
     if (/^\/api\/admin\/products\/[^/]+$/.test(path) && request.method() === "PATCH") { state.saved.push({ productForm: request.postData() ?? "" }); return json(route, { ok: true }); }
     if (path === "/api/admin/settings" && request.method() === "PATCH" && (request.postDataJSON() as { seo?: unknown }).seo) { const body = request.postDataJSON() as { seo: object }; state.saved.push(body); return json(route, body); }
+    if (path === "/api/admin/settings" && request.method() === "PATCH" && (request.postDataJSON() as { ownerEmails?: unknown }).ownerEmails) {
+      // The shop splits on commas and refuses an address it can't read; this stands in for that.
+      const body = request.postDataJSON() as { ownerEmails: { emails: string; paid: boolean; unpaid: boolean } };
+      const emails = body.ownerEmails.emails.split(",").map(item => item.trim().toLowerCase()).filter(Boolean);
+      if (emails.some(item => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item))) return json(route, { error: "That isn't an email address." }, 400);
+      state.saved.push(body);
+      return json(route, { ownerEmails: { ...body.ownerEmails, emails } });
+    }
     if (path === "/api/admin/settings" && request.method() === "PATCH") {
       const body = request.postDataJSON() as { shopLink?: string; instagram?: { show: boolean; username: string }; brand?: LogoState["brand"] };
       if (body.brand) { logoState(state).brand = body.brand; return json(route, { brand: body.brand }); }
