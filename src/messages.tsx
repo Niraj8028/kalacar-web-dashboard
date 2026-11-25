@@ -8,7 +8,7 @@ type Variable = { key: string; label: string };
 export type MessageConfig = { templates: Templates; defaults: Templates; variables: Variable[] };
 export type MessageOrder = { id: string; customer: string; email?: string; phone?: string; item?: string; total: number; trackingNote?: string; trackingCourier?: string; trackingId?: string; items?: { name: string; variant?: string; quantity: number }[] };
 
-const STATUSES = [["unfulfilled", "Not started"], ["processing", "Preparing"], ["dispatched", "Dispatched"], ["completed", "Completed"]] as const;
+const STATUSES = [["unfulfilled", "Not started"], ["processing", "Preparing"], ["dispatched", "Dispatched"], ["completed", "Completed"], ["unpaid", "Not paid"]] as const;
 const statusLabel = (status: string) => STATUSES.find(item => item[0] === status)?.[1] ?? status;
 const MAX_EMAIL_LINK = 2000;
 const COURIERS: Record<string, { label: string; url: string }> = { trackon: { label: "Trackon", url: "https://www.trackon.in/courier-tracking" }, india_post: { label: "India Post", url: "https://www.indiapost.gov.in/" } };
@@ -182,7 +182,7 @@ export function MessageTemplatesPanel() {
   const templates = saved ?? config?.templates;
   return <section className="panel settings-card" aria-labelledby="templates-title">
     <div className="panel-head"><div><p className="overline">ORDER UPDATES</p><h2 id="templates-title">Customer message templates</h2></div></div>
-    <p className="muted">These fill in the WhatsApp, SMS and Email buttons on Orders for each delivery status. You check the message and press Send in that app.</p>
+    <p className="muted">These fill in the WhatsApp, SMS and Email buttons on Orders for each delivery status. “Not paid” is for orders awaiting payment, failed or cancelled. You check the message and press Send in that app. Your order emails use the “Not started” and “Not paid” WhatsApp messages.</p>
     {error && <p className="order-detail-error" role="alert">{error}</p>}
     {!config || !templates ? !error && <p className="muted">Loading templates…</p> : <>
       <div className="template-variables" role="group" aria-label="Choose a status">{STATUSES.map(([status, label]) => <button className={`template-chip${active === status ? " active" : ""}`} type="button" aria-pressed={active === status} key={status} onClick={() => setActive(status)}>{label}{dirty[status] ? " · unsaved" : ""}</button>)}</div>
