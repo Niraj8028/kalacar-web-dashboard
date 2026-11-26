@@ -4,10 +4,12 @@ import { Check, TextField } from "./editor-fields";
 import { StatusChip } from "./dashboard-ui";
 
 type FooterLink = { label: string; link: string };
-type Footer = { text: string; showWhatsapp: boolean; links: FooterLink[] | null };
+type Business = { name: string; address: string; email: string; phone: string };
+type Footer = { text: string; showWhatsapp: boolean; links: FooterLink[] | null; business: Business };
 type Page = { slug: string; title: string; published: boolean; inFooter: boolean };
 const MAX_LINKS = 16;
-const DEFAULT: Footer = { text: "Prices and availability reflect the current catalogue.", showWhatsapp: true, links: null };
+const NO_BUSINESS: Business = { name: "", address: "", email: "", phone: "" };
+const DEFAULT: Footer = { text: "Prices and availability reflect the current catalogue.", showWhatsapp: true, links: null, business: NO_BUSINESS };
 
 /**
  * The footer on every shop page, and the links under "Information" in the phone menu.
@@ -27,7 +29,7 @@ export function FooterPanel() {
       getJson<{ pages: Page[] }>("/api/admin/pages", "Pages are unavailable right now.").catch(() => ({ pages: [] as Page[] })),
     ]).then(([settings, list]) => {
       if (!active) return;
-      const footer = { ...DEFAULT, ...settings.footer };
+      const footer = { ...DEFAULT, ...settings.footer, business: { ...NO_BUSINESS, ...settings.footer?.business } };
       setSaved(footer); setDraft(footer); setPages(list.pages);
     }).catch(cause => { if (active) setError(errorText(cause, "Settings are unavailable right now.")); });
     return () => { active = false; };
@@ -36,13 +38,16 @@ export function FooterPanel() {
   const links = draft.links ?? automatic;
   const change = (next: Partial<Footer>) => { setDraft(current => ({ ...current, ...next })); setError(""); setMessage(""); };
   const setLinks = (next: FooterLink[]) => change({ links: next });
+  const editBusiness = (next: Partial<Business>) => change({ business: { ...draft.business, ...next } });
   const editLink = (index: number, next: Partial<FooterLink>) => setLinks(links.map((item, i) => i === index ? { ...item, ...next } : item));
   const move = (index: number, by: number) => { const next = [...links]; const [item] = next.splice(index, 1); next.splice(index + by, 0, item); setLinks(next); };
   const dirty = saved !== null && JSON.stringify(draft) !== JSON.stringify(saved);
   async function save() {
     setBusy(true); setError(""); setMessage("");
     try {
-      const body = { ...draft, links: draft.links?.map(item => ({ label: item.label.trim(), link: item.link.trim() })) ?? null };
+      const business = { name: draft.business.name.trim(), address: draft.business.address.trim(), email: draft.business.email.trim(), phone: draft.business.phone.trim() };
+      if (business.email && !/^[^\s@<>]+@[^\s@<>]+\.[a-z]{2,}$/i.test(business.email)) { setError("The business email doesn't look right. Check it, or leave it empty."); return; }
+      const body = { ...draft, business, links: draft.links?.map(item => ({ label: item.label.trim(), link: item.link.trim() })) ?? null };
       const data = await sendJson<{ footer: Footer }>("/api/admin/settings", "PATCH", { footer: body });
       setSaved(data.footer); setDraft(data.footer);
       const dropped = (body.links?.length ?? 0) - (data.footer.links?.length ?? 0);
@@ -57,6 +62,13 @@ export function FooterPanel() {
       <fieldset className="editor-group"><legend>Footer text</legend>
         <TextField label="Text next to the logo" value={draft.text} max={300} rows={2} onChange={text => change({ text })} hint="Leave empty to hide it." />
         <Check label="Show the WhatsApp number" checked={draft.showWhatsapp} onChange={showWhatsapp => change({ showWhatsapp })} />
+      </fieldset>
+      <fieldset className="editor-group"><legend>Business details</legend>
+        <p className="muted">Shown at the bottom of every page and on the Contact page. Google Merchant Center needs these to show your products on Google: use the same business name, address, email and phone as in Merchant Center → Business info. Empty fields are hidden.</p>
+        <TextField label="Business name" value={draft.business.name} max={120} placeholder="Kalacar" onChange={name => editBusiness({ name })} hint="Your registered business or owner name." />
+        <TextField label="Business address" value={draft.business.address} max={300} rows={2} placeholder="Shop / house no., street, area, city, state, PIN code" onChange={address => editBusiness({ address })} />
+        <TextField label="Business email" value={draft.business.email} max={120} placeholder="hello@kalacar.in" onChange={email => editBusiness({ email })} />
+        <TextField label="Business phone" value={draft.business.phone} max={30} placeholder="+91 95615 79131" onChange={phone => editBusiness({ phone })} />
       </fieldset>
       <fieldset className="editor-group"><legend>Links</legend>
         {draft.links === null && <p className="muted">Now showing the pages that have “Show in the footer” ticked in Pages. Change anything below to choose the links yourself.</p>}
