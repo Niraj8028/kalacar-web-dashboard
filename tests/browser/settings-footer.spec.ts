@@ -10,8 +10,8 @@ test("Settings > Footer and menus: change the text, hide WhatsApp, and reorder, 
   // Starts from the pages that have "Show in the footer" ticked.
   await expect(card.getByLabel("Name", { exact: true })).toHaveCount(2);
   await expect(card.getByLabel("Name", { exact: true }).first()).toHaveValue("About Kalacar");
-  await card.getByLabel("Text next to the logo").fill("Made with devotion in Pune");
-  await card.getByLabel("Show the WhatsApp number").uncheck();
+  await card.getByLabel("Text at the bottom").fill("Made with devotion in Pune");
+  await card.getByLabel("Show the WhatsApp button under the business details").uncheck();
   await card.getByRole("button", { name: "Move Contact us up" }).click();
   await card.getByRole("button", { name: "+ Add link" }).click();
   await card.getByLabel("Name", { exact: true }).nth(2).fill("Instagram");
