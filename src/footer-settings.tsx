@@ -57,18 +57,18 @@ export function FooterPanel() {
   }
   return <section className={`panel settings-card${dirty ? " dirty" : ""}`} aria-labelledby="footer-title">
     <div className="panel-head"><div><p className="overline">EVERY PAGE</p><h2 id="footer-title">Footer and menus</h2></div>{saved && <StatusChip tone="neutral">{saved.links ? `${saved.links.length} links` : "Automatic links"}</StatusChip>}</div>
-    <p className="muted">The dark footer at the bottom of every page. The same links show under “Information” in the phone menu. Categories in the menu come from your products.</p>
+    <p className="muted">The dark footer at the bottom of every page: logo on the left, business details and WhatsApp on the right, links, then the copyright line. The same links show under “Information” in the phone menu. Categories in the menu come from your products.</p>
     {saved === null ? !error && <p className="muted">Loading…</p> : <>
-      <fieldset className="editor-group"><legend>Footer text</legend>
-        <TextField label="Text next to the logo" value={draft.text} max={300} rows={2} onChange={text => change({ text })} hint="Leave empty to hide it." />
-        <Check label="Show the WhatsApp number" checked={draft.showWhatsapp} onChange={showWhatsapp => change({ showWhatsapp })} />
+      <fieldset className="editor-group"><legend>Copyright line</legend>
+        <TextField label="Text at the bottom" value={draft.text} max={300} rows={2} placeholder="All rights reserved | Copyright © 2026 Kalacar.in" onChange={text => change({ text })} hint="Centred at the very bottom of every page. Leave empty to hide it." />
       </fieldset>
       <fieldset className="editor-group"><legend>Business details</legend>
-        <p className="muted">Shown at the bottom of every page and on the Contact page. Google Merchant Center needs these to show your products on Google: use the same business name, address, email and phone as in Merchant Center → Business info. Empty fields are hidden.</p>
+        <p className="muted">Shown on the right of the footer, one under the other, on every page and on the Contact page. Google Merchant Center needs these to show your products on Google: use the same business name, address, email and phone as in Merchant Center → Business info. Empty fields are hidden.</p>
         <TextField label="Business name" value={draft.business.name} max={120} placeholder="Kalacar" onChange={name => editBusiness({ name })} hint="Your registered business or owner name." />
         <TextField label="Business address" value={draft.business.address} max={300} rows={2} placeholder="Shop / house no., street, area, city, state, PIN code" onChange={address => editBusiness({ address })} />
         <TextField label="Business email" value={draft.business.email} max={120} placeholder="hello@kalacar.in" onChange={email => editBusiness({ email })} />
         <TextField label="Business phone" value={draft.business.phone} max={30} placeholder="+91 95615 79131" onChange={phone => editBusiness({ phone })} />
+        <Check label="Show the WhatsApp button under the business details" checked={draft.showWhatsapp} onChange={showWhatsapp => change({ showWhatsapp })} />
       </fieldset>
       <fieldset className="editor-group"><legend>Links</legend>
         {draft.links === null && <p className="muted">Now showing the pages that have “Show in the footer” ticked in Pages. Change anything below to choose the links yourself.</p>}
