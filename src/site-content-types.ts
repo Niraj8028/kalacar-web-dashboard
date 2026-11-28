@@ -39,28 +39,60 @@ export type ProductPageContent = {
   /** Off hides the green "In stock" in the buy box; low stock and out of stock messages still show. */
   inStock: { show: boolean };
   trustStrip: { show: boolean; items: TrustItem[] };
-  deliveryDates: { show: boolean; cutoffHour: number };
-  freeGift: { show: boolean; name: string };
-  whatsappFloat: { show: boolean; label: string };
-  leaveSurvey: { show: boolean };
-  preDispatch: { show: boolean; text: string };
+  deliveryDates: { show: boolean; cutoffHour: number; text: string; note: string };
+  buyNow: { label: string; icon: IconName; showMarks: boolean; marks: string };
+  bagTrust: { showLine: boolean; delivery: { show: boolean; label: string; value: string }; taxNote: { show: boolean; text: string }; youSave: { show: boolean; text: string } };
+  secureCheckout: { show: boolean; icon: IconName; label: string; info: string };
+  paymentBox: { show: boolean; icon: IconName; title: string; marks: string; note: string };
+  payButton: { label: string; icon: IconName };
+  whatsappFloat: { show: boolean; label: string; message: string; productMessage: string };
+  leaveSurvey: LeaveSurvey;
+  preDispatch: { show: boolean; title: string; text: string };
 };
-export const TRUST_ICONS = [["delivery", "Delivery truck"], ["breakage", "Shield"], ["photo", "Camera"], ["secure", "Lock"], ["whatsapp", "Chat"], ["gift", "Gift"]] as const;
-export type TrustItem = { icon: (typeof TRUST_ICONS)[number][0]; title: string; text: string };
+/** The icons the shop can show; "none" hides the icon. */
+export const TRUST_ICONS = [["none", "No icon"], ["delivery", "Delivery truck"], ["breakage", "Shield"], ["secure", "Lock"], ["photo", "Camera"], ["whatsapp", "Chat"], ["phone", "Phone"], ["gift", "Gift"], ["check", "Tick"], ["star", "Star"], ["heart", "Heart"]] as const;
+export type IconName = (typeof TRUST_ICONS)[number][0];
+export type TrustItem = { icon: IconName; title: string; text: string };
 export const MAX_TRUST_ITEMS = 4;
+export type LeaveReason = { key: "cod" | "trust" | "delivery" | "price" | "payment" | "question" | "other"; label: string; show: boolean };
+export type LeaveSurvey = {
+  show: boolean; siteShow: boolean; title: string; intro: string; siteIntro: string;
+  contact: { show: boolean; title: string; text: string; whatsappLabel: string; whatsappMessage: string; showCall: boolean; callLabel: string };
+  showQuestions: boolean; reasons: LeaveReason[]; continueLabel: string; siteContinueLabel: string; exitLabel: string;
+};
+/** The settings that belong to Settings → Trust and checkout. */
+export const TRUST_KEYS: string[] = ["trustStrip", "deliveryDates", "buyNow", "bagTrust", "secureCheckout", "paymentBox", "payButton", "whatsappFloat", "leaveSurvey", "preDispatch"];
 /** Same as the shop's defaults for the trust and checkout settings. */
-export const DEFAULT_TRUST: Pick<ProductPageContent, "trustStrip" | "deliveryDates" | "freeGift" | "whatsappFloat" | "leaveSurvey" | "preDispatch"> = {
+export const DEFAULT_TRUST: Pick<ProductPageContent, "trustStrip" | "deliveryDates" | "buyNow" | "bagTrust" | "secureCheckout" | "paymentBox" | "payButton" | "whatsappFloat" | "leaveSurvey" | "preDispatch"> = {
   trustStrip: { show: true, items: [
     { icon: "delivery", title: "Free delivery", text: "Across India" },
     { icon: "breakage", title: "Breakage covered", text: "Free replacement" },
     { icon: "photo", title: "Photo before dispatch", text: "Of your actual murti, on WhatsApp" },
     { icon: "secure", title: "Secure payment", text: "UPI, cards and net banking" },
   ] },
-  deliveryDates: { show: true, cutoffHour: 14 },
-  freeGift: { show: false, name: "" },
-  whatsappFloat: { show: true, label: "Questions? Chat with us" },
-  leaveSurvey: { show: true },
-  preDispatch: { show: true, text: "Before we ship, we'll WhatsApp you a photo of your actual murti, so you can see exactly what you're getting." },
+  deliveryDates: { show: true, cutoffHour: 14, text: "Order today, get it between {from} – {to}.", note: "Exact date depends on your PIN code." },
+  buyNow: { label: "Buy now", icon: "secure", showMarks: true, marks: "UPI, GPay, PhonePe, Paytm" },
+  bagTrust: { showLine: true, delivery: { show: true, label: "Delivery", value: "FREE" }, taxNote: { show: true, text: "Inclusive of all taxes" }, youSave: { show: true, text: "You save {amount} on this order" } },
+  secureCheckout: { show: true, icon: "secure", label: "Secure checkout", info: "Payments are processed by Razorpay over an encrypted connection. We never see or store your card or UPI details, and we don't sell your information." },
+  paymentBox: { show: true, icon: "secure", title: "Pay securely with Razorpay", marks: "UPI, GPay, PhonePe, Paytm, Visa, Mastercard, RuPay", note: "You choose UPI, card or net banking in the next step. All payments are encrypted, and we never see or store your card or UPI details." },
+  payButton: { label: "Pay {total} securely", icon: "secure" },
+  whatsappFloat: { show: true, label: "Questions? Chat with us", message: "Hi Kalacar, I have a question.", productMessage: "Hi Kalacar, I have a question about {product}." },
+  leaveSurvey: {
+    show: true, siteShow: true, title: "Before you go", intro: "Your bag is saved. Tell us what stopped you, or talk to us first.", siteIntro: "Have a question before you decide? Talk to us, or tell us what's missing.",
+    contact: { show: true, title: "Talk to a real person", text: "Have a question about the murti, delivery or payment? We reply on WhatsApp, usually within minutes.", whatsappLabel: "Chat on WhatsApp", whatsappMessage: "Hi Kalacar, I have a question before ordering.", showCall: true, callLabel: "Call us" },
+    showQuestions: true,
+    reasons: [
+      { key: "cod", label: "I want Cash on Delivery", show: true },
+      { key: "trust", label: "Not sure about the quality or the shop", show: true },
+      { key: "delivery", label: "Delivery takes too long", show: true },
+      { key: "price", label: "The price feels high", show: true },
+      { key: "payment", label: "Payment didn't work", show: true },
+      { key: "question", label: "I have a question first", show: true },
+      { key: "other", label: "Something else", show: true },
+    ],
+    continueLabel: "Continue checkout", siteContinueLabel: "Keep browsing", exitLabel: "Exit",
+  },
+  preDispatch: { show: true, title: "We send you a photo", text: "Before we ship, we'll WhatsApp you a photo of your actual murti, so you can see exactly what you're getting." },
 };
 export const DEFAULT_EYEBROW = { show: true, text: "{category} · SMALL DEVOTIONAL MURTI" };
 /** Same as the shop: the number in stock is hidden until turned on; Google reviews show. */

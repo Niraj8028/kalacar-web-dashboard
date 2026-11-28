@@ -16,6 +16,7 @@ import { CheckoutsSection } from "./checkouts-section";
 import { PaymentStatusPanel } from "./payment-status";
 import { SettingsTabs } from "./settings-tabs";
 import { ProductPageSettingsPanel } from "./product-page-settings";
+import { TrustSettingsPanel } from "./trust-settings";
 import { ReviewsSection } from "./reviews-section";
 import { FestivePanel } from "./festive-settings";
 import { InstagramPanel } from "./instagram-settings";
@@ -925,6 +926,7 @@ function StoreSettings({ onStoreSaved, onShopLinkSaved }: { onStoreSaved: (store
         <CategoriesPanel />
         <ProductPageSettingsPanel part="page" />
       </> },
+      { key: "trust", label: "Trust and checkout", contains: "Trust strip, Buy now and Pay buttons, delivery dates, bag totals, secure checkout, payment box, WhatsApp button, Before you go panel, photo before dispatch", content: <TrustSettingsPanel /> },
       { key: "footer", label: "Footer and menus", contains: "Footer text, WhatsApp number, footer and menu links", content: <>
         <FooterPanel />
       </> },
