@@ -8,7 +8,7 @@ type Variable = { key: string; label: string };
 export type MessageConfig = { templates: Templates; defaults: Templates; variables: Variable[] };
 export type MessageOrder = { id: string; customer: string; email?: string; phone?: string; item?: string; total: number; trackingNote?: string; trackingCourier?: string; trackingId?: string; items?: { name: string; variant?: string; quantity: number }[] };
 
-const STATUSES = [["unfulfilled", "Not started"], ["processing", "Preparing"], ["dispatched", "Dispatched"], ["completed", "Completed"], ["unpaid", "Not paid"]] as const;
+const STATUSES = [["unfulfilled", "Not started"], ["processing", "Preparing"], ["dispatched", "Dispatched"], ["completed", "Completed"], ["unpaid", "Not paid"], ["abandoned", "Left checkout"]] as const;
 const statusLabel = (status: string) => STATUSES.find(item => item[0] === status)?.[1] ?? status;
 const MAX_EMAIL_LINK = 2000;
 const COURIERS: Record<string, { label: string; url: string }> = { trackon: { label: "Trackon", url: "https://www.trackon.in/courier-tracking" }, india_post: { label: "India Post", url: "https://www.indiapost.gov.in/" } };

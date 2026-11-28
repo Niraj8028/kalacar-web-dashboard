@@ -38,6 +38,29 @@ export type ProductPageContent = {
   delivery: { estimate: string; note: string; free: { show: boolean; text: string }; freeUnderStock: { show: boolean } };
   /** Off hides the green "In stock" in the buy box; low stock and out of stock messages still show. */
   inStock: { show: boolean };
+  trustStrip: { show: boolean; items: TrustItem[] };
+  deliveryDates: { show: boolean; cutoffHour: number };
+  freeGift: { show: boolean; name: string };
+  whatsappFloat: { show: boolean; label: string };
+  leaveSurvey: { show: boolean };
+  preDispatch: { show: boolean; text: string };
+};
+export const TRUST_ICONS = [["delivery", "Delivery truck"], ["breakage", "Shield"], ["photo", "Camera"], ["secure", "Lock"], ["whatsapp", "Chat"], ["gift", "Gift"]] as const;
+export type TrustItem = { icon: (typeof TRUST_ICONS)[number][0]; title: string; text: string };
+export const MAX_TRUST_ITEMS = 4;
+/** Same as the shop's defaults for the trust and checkout settings. */
+export const DEFAULT_TRUST: Pick<ProductPageContent, "trustStrip" | "deliveryDates" | "freeGift" | "whatsappFloat" | "leaveSurvey" | "preDispatch"> = {
+  trustStrip: { show: true, items: [
+    { icon: "delivery", title: "Free delivery", text: "Across India" },
+    { icon: "breakage", title: "Breakage covered", text: "Free replacement" },
+    { icon: "photo", title: "Photo before dispatch", text: "Of your actual murti, on WhatsApp" },
+    { icon: "secure", title: "Secure payment", text: "UPI, cards and net banking" },
+  ] },
+  deliveryDates: { show: true, cutoffHour: 14 },
+  freeGift: { show: false, name: "" },
+  whatsappFloat: { show: true, label: "Questions? Chat with us" },
+  leaveSurvey: { show: true },
+  preDispatch: { show: true, text: "Before we ship, we'll WhatsApp you a photo of your actual murti, so you can see exactly what you're getting." },
 };
 export const DEFAULT_EYEBROW = { show: true, text: "{category} · SMALL DEVOTIONAL MURTI" };
 /** Same as the shop: the number in stock is hidden until turned on; Google reviews show. */

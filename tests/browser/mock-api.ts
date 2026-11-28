@@ -5,7 +5,18 @@ const colour = (id: string, name: string, stock: number, active = true) => ({ id
 const product = (id: string, name: string, deity: string, variants: ReturnType<typeof colour>[]) => ({ id, name, deity, image: "/favicon.svg", gallery: ["/favicon.svg"], price: 999, stock: variants.reduce((sum, v) => sum + v.stock, 0), variants, specs: [], highlights: [], accordions: [] });
 export const order = (id: string, customer: string, status: string, over: object = {}) => ({ id, date: "6 Nov 2026", customer, item: "Test murti · 1", total: 999, status, fulfillmentStatus: "unfulfilled", email: "buyer@example.test", phone: "9876543210", address: "Test address", pincode: "411001", ...over });
 const T = (word: string) => ({ whatsapp: `WhatsApp ${word} {order_id}`, sms: `SMS ${word} {order_id}`, emailSubject: `Order {order_id} ${word}`, emailBody: `Hi {customer_name}, ${word}` });
-const templates = { unfulfilled: T("received"), processing: T("preparing"), dispatched: { ...T("sent"), sms: "Sent by {courier}, ID {tracking_id}" }, completed: { ...T("done"), sms: "" }, unpaid: T("unpaid") };
+const CHECKOUTS = {
+  leads: [
+    { id: "11111111-1111-4111-8111-111111111111", name: "Asha Patil", phone: "9876543210", email: "asha@example.test", pincode: "410502", items: [{ name: "Cute Krishna", colour: "Blue", quantity: 1, price: 699 }], total: 699, contacted: false, createdAt: "2026-11-27T10:00:00Z", updatedAt: "2026-11-27T10:05:00Z", outcome: "none", orderId: null },
+    { id: "22222222-2222-4222-8222-222222222222", name: "Ravi Shah", phone: "9123456780", email: "", pincode: "", items: [{ name: "Cute Krishna", colour: "Blue", quantity: 2, price: 699 }], total: 1398, contacted: false, createdAt: "2026-11-26T10:00:00Z", updatedAt: "2026-11-26T10:05:00Z", outcome: "paid", orderId: "33333333-3333-4333-8333-333333333333" },
+  ],
+  feedback: [
+    { id: 1, leadId: null, reasons: ["cod", "trust"], other: "", source: "payment", createdAt: "2026-11-27T10:06:00Z" },
+    { id: 2, leadId: null, reasons: ["cod"], other: "Want to see a video first", source: "back", createdAt: "2026-11-27T11:00:00Z" },
+  ],
+  reasons: [{ key: "cod", label: "I want Cash on Delivery" }, { key: "trust", label: "Not sure about the quality or the shop" }, { key: "price", label: "The price feels high" }],
+};
+const templates = { unfulfilled: T("received"), processing: T("preparing"), dispatched: { ...T("sent"), sms: "Sent by {courier}, ID {tracking_id}" }, completed: { ...T("done"), sms: "" }, unpaid: T("unpaid"), abandoned: { ...T("left"), whatsapp: "Hi {customer_name}, your bag is waiting" } };
 const label = { deliverTo: "{customer_name}", from: "Kalacar", details: "{order_id}" };
 
 export const SLIDE = { productId: "", backgroundImage: "", desktopImage: "", showEyebrow: true, eyebrow: "THE SHOP", showTitle: true, title: "Hero title", showDescription: true, description: "Hero text", buy: { show: true, label: "Buy now", showPrice: true }, explore: { show: true, label: "Explore", link: "#catalogue" } };
@@ -40,6 +51,8 @@ export async function mockApi(page: Page, over: Partial<ApiState> = {}) {
     if (path === "/api/admin/customers") return json(route, { customers: [{ id: "u1", name: "Paid Buyer", email: "buyer@example.test", phone: "9876543210", google: true, isOwner: false, joined: "2026-11-01", paidOrders: 1, allOrders: 2, spent: 999, refunded: 0, lastOrder: "2026-11-06", city: "Pune", pincode: "411001" }] });
     if (path === "/api/admin/coupons") return json(route, { coupons: [{ id: 1, code: "TEST10", type: "percent", amount: 10, maxDiscount: null, minSpend: 0, usageLimit: 5, oncePerCustomer: false, startsOn: null, expiresOn: null, active: true, used: 1, reserved: 1, discountGiven: 100, status: "active" }] });
     if (path === "/api/admin/categories") return json(route, { categories: [{ id: 1, name: "Krishna", productCount: 1, image: "" }, { id: 2, name: "Ganesh", productCount: 1, image: "" }] });
+    if (path === "/api/admin/checkout-leads") return json(route, CHECKOUTS);
+    if (path.startsWith("/api/admin/checkout-leads/")) { state.saved.push({ lead: path.split("/").pop(), ...(request.postDataJSON() as object) }); return json(route, { ok: true }); }
     if (path === "/api/admin/order-messages") return json(route, { templates, defaults: templates, variables: [{ key: "order_id", label: "Order ID" }, { key: "customer_name", label: "Customer name" }, { key: "courier", label: "Courier" }, { key: "tracking_id", label: "Tracking ID" }] });
     if (path === "/api/admin/print-label") return json(route, { template: label, defaults: label, variables: [{ key: "order_id", label: "Order ID" }] });
     if (path === "/api/admin/payment-status") return json(route, state.payment);
