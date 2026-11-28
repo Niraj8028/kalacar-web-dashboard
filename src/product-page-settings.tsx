@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { errorText, getJson, sendJson } from "./admin-api";
 import { Check, ImageField, SaveBar, TextField } from "./editor-fields";
-import { DEFAULT_ACTIVITY, DEFAULT_DELIVERY, DEFAULT_EYEBROW, DEFAULT_GOOGLE_REVIEWS, DEFAULT_IN_STOCK, DEFAULT_STOCK_COUNT } from "./site-content-types";
+import { DEFAULT_ACTIVITY, DEFAULT_DELIVERY, DEFAULT_EYEBROW, DEFAULT_GOOGLE_REVIEWS, DEFAULT_IN_STOCK, DEFAULT_STOCK_COUNT, TRUST_KEYS } from "./site-content-types";
 import type { ProductPageContent } from "./site-content-types";
 
 const ACTIVITY_KEYS = ["viewers", "recentSales", "soldThisWeek"] as const;
@@ -34,7 +34,8 @@ export function ProductPageSettingsPanel({ part = "page" }: { part?: "page" | "a
     try {
       // The other settings card may have saved since this one loaded, so only this card's fields are changed.
       const latest = await getJson<{ productPage: ProductPageContent }>("/api/admin/site-content", "Settings are unavailable right now.");
-      const mine = Object.fromEntries(Object.entries(draft!).filter(([key]) => isActivity(key) === (part === "activity")));
+      // Trust and checkout settings have their own tab and are never saved from here.
+      const mine = Object.fromEntries(Object.entries(draft!).filter(([key]) => !TRUST_KEYS.includes(key) && isActivity(key) === (part === "activity")));
       const data = await sendJson<{ productPage: ProductPageContent }>("/api/admin/site-content", "PATCH", { productPage: { ...withActivityDefaults(latest.productPage), ...mine } });
       const page = withActivityDefaults(data.productPage);
       setSaved(page); setDraft(page); setMessage(part === "activity" ? "Saved. The shop is updated." : "Saved. Every product page is updated.");

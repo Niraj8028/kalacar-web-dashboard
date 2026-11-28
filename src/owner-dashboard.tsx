@@ -12,9 +12,11 @@ import { stopLive, useLiveRevision } from "./realtime";
 import { OrderAlertsPanel, useOrderAlerts } from "./order-alerts";
 import { removeThisDeviceFromAlerts } from "./push-alerts";
 import { InquiriesSection } from "./inquiries-section";
+import { CheckoutsSection } from "./checkouts-section";
 import { PaymentStatusPanel } from "./payment-status";
 import { SettingsTabs } from "./settings-tabs";
 import { ProductPageSettingsPanel } from "./product-page-settings";
+import { TrustSettingsPanel } from "./trust-settings";
 import { ReviewsSection } from "./reviews-section";
 import { FestivePanel } from "./festive-settings";
 import { InstagramPanel } from "./instagram-settings";
@@ -45,9 +47,9 @@ type OrderDetail = Order & { items: { id: string; name: string; variant?: string
 type AdminMetrics = { todayRevenue: number; monthRevenue: number; totalOrders: number; paidOrders: number; averageOrderValue: number; lowStockProducts: number; outOfStockProducts: number; lowStockThreshold: number; fulfillmentNeeded: number; paymentRecovery: number; paymentMode: "test" | "live" | "unconfigured" };
 type OrderFilter = "all" | "pending_payment" | "processing" | "on_hold" | "dispatched" | "completed" | "cancelled" | "refunded";
 type OrderStatusCounts = Record<OrderFilter, number>;
-type Section = "Overview" | "Orders" | "Products" | "Customers" | "Coupons" | "Pages" | "Reviews" | "Inquiries" | "Settings";
-const sections: Section[] = ["Overview", "Orders", "Products", "Customers", "Coupons", "Pages", "Reviews", "Inquiries", "Settings"];
-const sectionPaths: Record<Section, string> = { Overview: "/", Orders: "/orders", Products: "/products", Customers: "/customers", Coupons: "/coupons", Pages: "/pages", Reviews: "/reviews", Inquiries: "/inquiries", Settings: "/settings" };
+type Section = "Overview" | "Orders" | "Checkouts" | "Products" | "Customers" | "Coupons" | "Pages" | "Reviews" | "Inquiries" | "Settings";
+const sections: Section[] = ["Overview", "Orders", "Checkouts", "Products", "Customers", "Coupons", "Pages", "Reviews", "Inquiries", "Settings"];
+const sectionPaths: Record<Section, string> = { Overview: "/", Orders: "/orders", Checkouts: "/checkouts", Products: "/products", Customers: "/customers", Coupons: "/coupons", Pages: "/pages", Reviews: "/reviews", Inquiries: "/inquiries", Settings: "/settings" };
 type Route = { section: Section; orderId: string };
 const routePath = ({ section, orderId }: Route) => orderId ? `${sectionPaths.Orders}/${orderId}` : sectionPaths[section];
 function readRoute(): Route {
@@ -288,7 +290,7 @@ export default function Dashboard() {
 
   const todayLabel = new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long" }).format(new Date()).toUpperCase();
   const pendingCount = orderCounts?.pending_payment ?? 0;
-  const content = section === "Products" ? <Products products={products} drafts={productDrafts} setDrafts={setProductDrafts} onColourSaved={colourSaved} onProductCreated={refreshProducts} apiError={apiError} /> : section === "Orders" ? <Orders orders={orders} loading={ordersLoading} error={ordersError} filter={orderFilter} counts={orderCounts} onFilter={setOrderFilter} paymentMode={metrics?.paymentMode ?? "unconfigured"} onUpdate={updateOrder} routeOrderId={route.orderId} onOpenOrder={id => navigate({ section: "Orders", orderId: id })} onCloseOrder={() => navigate({ section: "Orders", orderId: "" })} /> : section === "Coupons" ? <Coupons /> : section === "Pages" ? <Suspense fallback={<p className="muted">Loading the page editor…</p>}><PagesSection products={products.map(({ id, name }) => ({ id, name }))} shopLink={shopLink} /></Suspense> : section === "Reviews" ? <ReviewsSection products={products.map(({ id, name }) => ({ id, name }))} /> : section === "Inquiries" ? <InquiriesSection /> : section === "Customers" ? <Customers onOpenOrder={id => { setOrderFilter("all"); navigate({ section: "Orders", orderId: id }); }} /> : section === "Overview" ? <>
+  const content = section === "Products" ? <Products products={products} drafts={productDrafts} setDrafts={setProductDrafts} onColourSaved={colourSaved} onProductCreated={refreshProducts} apiError={apiError} /> : section === "Orders" ? <Orders orders={orders} loading={ordersLoading} error={ordersError} filter={orderFilter} counts={orderCounts} onFilter={setOrderFilter} paymentMode={metrics?.paymentMode ?? "unconfigured"} onUpdate={updateOrder} routeOrderId={route.orderId} onOpenOrder={id => navigate({ section: "Orders", orderId: id })} onCloseOrder={() => navigate({ section: "Orders", orderId: "" })} /> : section === "Coupons" ? <Coupons /> : section === "Pages" ? <Suspense fallback={<p className="muted">Loading the page editor…</p>}><PagesSection products={products.map(({ id, name }) => ({ id, name }))} shopLink={shopLink} /></Suspense> : section === "Reviews" ? <ReviewsSection products={products.map(({ id, name }) => ({ id, name }))} /> : section === "Inquiries" ? <InquiriesSection /> : section === "Checkouts" ? <CheckoutsSection onOpenOrder={id => { setOrderFilter("all"); navigate({ section: "Orders", orderId: id }); }} /> : section === "Customers" ? <Customers onOpenOrder={id => { setOrderFilter("all"); navigate({ section: "Orders", orderId: id }); }} /> : section === "Overview" ? <>
     <div className="welcome-row"><div><p className="overline">{todayLabel}</p><h1>Good morning</h1><p className="muted">A clear view of your little shop.</p></div></div>
     {metrics?.paymentMode === "test" && <p className="test-mode-warning" role="note">Razorpay test mode · Orders and revenue shown here are test activity, not live sales.</p>}
     {metrics?.paymentMode === "unconfigured" && <p className="test-mode-warning" role="note">Payment mode is not configured · Do not treat these order totals as live sales.</p>}
@@ -924,6 +926,7 @@ function StoreSettings({ onStoreSaved, onShopLinkSaved }: { onStoreSaved: (store
         <CategoriesPanel />
         <ProductPageSettingsPanel part="page" />
       </> },
+      { key: "trust", label: "Trust and checkout", contains: "Trust strip, Buy now and Pay buttons, delivery dates, bag totals, secure checkout, payment box, WhatsApp button, Before you go panel, photo before dispatch", content: <TrustSettingsPanel /> },
       { key: "footer", label: "Footer and menus", contains: "Footer text, WhatsApp number, footer and menu links", content: <>
         <FooterPanel />
       </> },
